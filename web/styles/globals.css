@@ -19,9 +19,9 @@
   --color-text-muted: #8a8e99;
   --color-text-on-accent: #0e0f11;
 
-  /* Accent */
-  --color-accent-default: #ffd60a;
-  --color-accent-subtle: #ffd60a24;
+  /* Accent — verde Futix extraído da logo */
+  --color-accent-default: #9ef225;
+  --color-accent-subtle: #9ef22524;
 
   /* Border */
   --color-border-default: #2b2d33;

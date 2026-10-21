@@ -1,7 +1,8 @@
 "use client";
 
-import { Calendar, Home, Shield, Trophy, User } from "lucide-react";
+import { Calendar, Home, Shield, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "../ui/Avatar";
@@ -63,10 +64,15 @@ export function Sidebar({
     >
       {/* Logo */}
       <div className="flex gap-[var(--space-md)] items-center">
-        <span className="bg-accent-default rounded-md flex items-center justify-center size-9 shrink-0">
-          <Trophy size={20} className="text-text-on-accent" aria-hidden />
-        </span>
-        <span className="text-heading-h2 text-text-primary">Fut</span>
+        <Image
+          src="/logo-futix-transparent.png"
+          alt="Futix"
+          width={36}
+          height={36}
+          className="shrink-0"
+          priority
+        />
+        <span className="text-heading-h2 text-text-primary">Futix</span>
       </div>
 
       {/* Botão nova sala */}
