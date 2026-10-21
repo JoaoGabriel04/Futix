@@ -48,8 +48,8 @@ function assertFutureDate(startsAt: string): void {
 export async function createRoom(userId: string, data: CreateRoomInput): Promise<Room> {
   assertFutureDate(data.startsAt);
 
-  const [room] = await prisma.$transaction(async (tx) => {
-    const newRoom = await tx.room.create({
+  return prisma.$transaction(async (tx) => {
+    const room = await tx.room.create({
       data: {
         title: data.title,
         location: data.location,
@@ -64,7 +64,7 @@ export async function createRoom(userId: string, data: CreateRoomInput): Promise
 
     await tx.roomMember.create({
       data: {
-        roomId: newRoom.id,
+        roomId: room.id,
         userId,
         role: "ORGANIZER",
         status: "CONFIRMED",
@@ -72,10 +72,8 @@ export async function createRoom(userId: string, data: CreateRoomInput): Promise
       },
     });
 
-    return [newRoom];
+    return room;
   });
-
-  return room;
 }
 
 export async function listRooms(userId: string): Promise<RoomWithCounts[]> {
@@ -163,6 +161,11 @@ export async function getRoom(roomId: string, userId: string): Promise<RoomDetai
 export async function updateRoom(roomId: string, data: UpdateRoomInput): Promise<Room> {
   if (data.startsAt !== undefined) {
     assertFutureDate(data.startsAt);
+  }
+
+  const existing = await prisma.room.findUnique({ where: { id: roomId }, select: { id: true } });
+  if (!existing) {
+    throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
   }
 
   return prisma.room.update({
