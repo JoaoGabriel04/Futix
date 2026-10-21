@@ -2,7 +2,7 @@ import { createServer } from "http";
 import pino from "pino";
 import { createApp } from "./app.js";
 import { env } from "./env.js";
-import { createSocketServer } from "./socket.js";
+import { createSocketServer, setIo } from "./socket.js";
 
 const logger = pino(
   env.NODE_ENV === "development" ? { transport: { target: "pino-pretty" } } : {},
@@ -10,7 +10,8 @@ const logger = pino(
 
 const app = createApp();
 const httpServer = createServer(app);
-createSocketServer(httpServer);
+const io = createSocketServer(httpServer);
+setIo(io);
 
 function startListening(retriesLeft = 3) {
   httpServer.removeAllListeners("error");
