@@ -36,7 +36,7 @@ export function AppShell({
       </div>
 
       {/* Conteúdo principal */}
-      <main className="flex flex-col flex-1 min-w-0 overflow-y-auto">
+      <main className="flex flex-col flex-1 min-w-0 overflow-y-auto pb-[84px] lg:pb-0">
         {children}
       </main>
 
