@@ -108,10 +108,10 @@ export default function PerfilPage() {
   async function handleLogout() {
     try {
       await apiFetch<unknown>("/auth/logout", { method: "POST" });
-      await mutate(undefined, { revalidate: false });
     } catch {
-      // always redirect even on error
+      // continue to clear cache and redirect even on error
     }
+    await mutate(undefined, { revalidate: false });
     router.push("/entrar");
   }
 
@@ -133,9 +133,7 @@ export default function PerfilPage() {
           />
           <div className="flex flex-col gap-[var(--space-xs)]">
             <span className="text-heading-h2 text-text-primary">{user?.name ?? "—"}</span>
-            {user?.nickname && (
-              <span className="text-body-regular text-text-secondary">{user.nickname}</span>
-            )}
+            <span className="text-body-regular text-text-secondary">{user?.nickname ?? "—"}</span>
           </div>
         </div>
 
