@@ -151,14 +151,28 @@ export default function UIShowcase() {
       <section className="space-y-[var(--space-lg)]">
         <h2 className="text-heading-h2 text-text-primary">Approval Card</h2>
         <ApprovalCard
-          nome="Rafael Mendes"
-          detalhe="Indicado por Carlos · há 12 min"
-          funcao="Linha"
+          member={{
+            id: "m1",
+            userId: "u1",
+            role: "PLAYER",
+            status: "PENDING",
+            playRole: "LINE",
+            waitlistPosition: null,
+            user: { name: "Rafael Mendes", nickname: "Rafa", avatarUrl: null, preferredPosition: "Meia" },
+          }}
+          onApprove={() => undefined}
+          onReject={() => undefined}
         />
         <ApprovalCard
-          nome="Fernando Costa"
-          detalhe="Novo usuário · há 3 min"
-          funcao="Goleiro"
+          member={{
+            id: "m2",
+            userId: "u2",
+            role: "PLAYER",
+            status: "WAITLIST",
+            playRole: "GOALKEEPER",
+            waitlistPosition: 2,
+            user: { name: "Fernando Costa", nickname: null, avatarUrl: null, preferredPosition: null },
+          }}
         />
       </section>
 
