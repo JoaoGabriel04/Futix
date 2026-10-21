@@ -20,6 +20,7 @@ interface ApprovalCardProps {
   };
   onApprove?: () => void;
   onReject?: () => void;
+  onPromote?: () => void;
   isLoading?: boolean;
 }
 
@@ -60,6 +61,7 @@ export function ApprovalCard({
   member,
   onApprove,
   onReject,
+  onPromote,
   isLoading = false,
 }: ApprovalCardProps) {
   const iniciais = member.user.name
@@ -145,10 +147,24 @@ export function ApprovalCard({
         </div>
       )}
 
-      {member.status === "WAITLIST" && member.waitlistPosition !== null && (
-        <p className="text-caption-regular text-text-secondary">
-          Fila de espera: #{member.waitlistPosition}
-        </p>
+      {member.status === "WAITLIST" && (
+        <div className="flex flex-col gap-[var(--space-sm)]">
+          {member.waitlistPosition !== null && (
+            <p className="text-caption-regular text-text-secondary">
+              Fila de espera: #{member.waitlistPosition}
+            </p>
+          )}
+          {onPromote && (
+            <Button
+              variant="Secondary"
+              size="Small"
+              onClick={onPromote}
+              disabled={isLoading}
+            >
+              Promover
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
