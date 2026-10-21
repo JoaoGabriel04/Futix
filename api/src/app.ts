@@ -8,6 +8,7 @@ import { env } from "./env.js";
 import { errorHandler } from "./middlewares/error.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { usersRouter } from "./modules/users/users.routes.js";
+import { membersRouter } from "./modules/members/members.routes.js";
 import { roomsRouter } from "./modules/rooms/rooms.routes.js";
 
 export function createApp(): Express {
@@ -39,6 +40,7 @@ export function createApp(): Express {
   app.use(authRouter);
   app.use(usersRouter);
   app.use(roomsRouter);
+  app.use("/rooms", membersRouter);
 
   app.use(errorHandler);
 
