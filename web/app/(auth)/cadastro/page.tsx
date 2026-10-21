@@ -28,10 +28,19 @@ export default function CadastroPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  function formatPhone(value: string): string {
+    const d = value.replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 2) return d.length ? `(${d}` : "";
+    if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  }
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -182,6 +191,10 @@ export default function CadastroPage() {
           label="Celular"
           placeholder="Ex: (99) 99999-9999"
           {...register("celular")}
+          onChange={(e) => {
+            e.target.value = formatPhone(e.target.value);
+            void setValue("celular", e.target.value, { shouldValidate: false });
+          }}
         />
 
         <Input
