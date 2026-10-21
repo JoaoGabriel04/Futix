@@ -122,6 +122,36 @@ describe("createRoom — Regra 2 validations", () => {
     expect(result).toEqual(FAKE_ROOM);
   });
 
+  // Test 3b: lineSlots < 2 → INVALID_LINE_SLOTS
+  it("throws INVALID_LINE_SLOTS (status 400) when lineSlots is less than 2", async () => {
+    const input = { ...BASE_INPUT, lineSlots: 1 };
+    await expect(createRoom("user-1", input)).rejects.toMatchObject({
+      code: "INVALID_LINE_SLOTS",
+      status: 400,
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  // Test 3c: teamSize < 1 → INVALID_TEAM_SIZE
+  it("throws INVALID_TEAM_SIZE (status 400) when teamSize is less than 1", async () => {
+    const input = { ...BASE_INPUT, teamSize: 0 };
+    await expect(createRoom("user-1", input)).rejects.toMatchObject({
+      code: "INVALID_TEAM_SIZE",
+      status: 400,
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  // Test 3d: goalkeeperSlots < 0 → INVALID_GOALKEEPER_SLOTS
+  it("throws INVALID_GOALKEEPER_SLOTS (status 400) when goalkeeperSlots is negative", async () => {
+    const input = { ...BASE_INPUT, goalkeeperSlots: -1 };
+    await expect(createRoom("user-1", input)).rejects.toMatchObject({
+      code: "INVALID_GOALKEEPER_SLOTS",
+      status: 400,
+    });
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   // Test 4: valid input → transaction creates both Room and RoomMember
   it("creates both a Room and an ORGANIZER RoomMember inside the transaction", async () => {
     setupTransaction();

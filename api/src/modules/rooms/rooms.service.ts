@@ -47,6 +47,9 @@ function assertFutureDate(startsAt: string): void {
 
 export async function createRoom(userId: string, data: CreateRoomInput): Promise<Room> {
   assertFutureDate(data.startsAt);
+  if (data.lineSlots < 2) throw makeError("Vagas de linha deve ser no mínimo 2.", 400, "INVALID_LINE_SLOTS");
+  if (data.teamSize < 1) throw makeError("Jogadores por time deve ser no mínimo 1.", 400, "INVALID_TEAM_SIZE");
+  if (data.goalkeeperSlots < 0) throw makeError("Vagas de goleiro não pode ser negativo.", 400, "INVALID_GOALKEEPER_SLOTS");
 
   return prisma.$transaction(async (tx) => {
     const room = await tx.room.create({
