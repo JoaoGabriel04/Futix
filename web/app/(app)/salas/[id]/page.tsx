@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale";
 import * as Tabs from "@radix-ui/react-tabs";
 import { ArrowLeft, MapPin, Clock } from "lucide-react";
 import { Badge } from "../../../../components/ui/Badge";
+import { Button } from "../../../../components/ui/Button";
 import { Progress } from "../../../../components/ui/Progress";
 import { PlayerRow } from "../../../../components/domain/PlayerRow";
 import { useRoom } from "../../../../hooks/useRoom";
@@ -140,6 +141,18 @@ export default function SalaPage() {
           </div>
         )}
       </div>
+
+      {/* Join button — visible when room is open and user is not a member */}
+      {room.status === "OPEN" && room.myMember === null && (
+        <Button
+          variant="Primary"
+          size="Large"
+          className="w-full"
+          onClick={() => router.push(`/salas/${id}/entrar`)}
+        >
+          Entrar na sala
+        </Button>
+      )}
 
       {/* Tabs */}
       <Tabs.Root defaultValue="linha" className="flex flex-col gap-[var(--space-md)]">
