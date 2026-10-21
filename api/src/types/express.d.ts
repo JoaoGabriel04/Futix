@@ -7,5 +7,6 @@ declare namespace Express {
   }
   interface Request {
     userId: string;
+    memberRole?: string;
   }
 }
