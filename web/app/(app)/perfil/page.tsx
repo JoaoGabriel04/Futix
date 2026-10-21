@@ -126,12 +126,12 @@ export default function PerfilPage() {
 
   if (isLoading) {
     return (
-      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">Carregando...</p>
+      <p className="text-body-regular text-text-muted w-full max-w-xl mx-auto p-[var(--space-lg)] lg:p-[var(--space-3xl)]">Carregando...</p>
     );
   }
 
   return (
-    <div className="p-[var(--space-lg)] flex flex-col gap-[var(--space-xl)] max-w-[390px]">
+    <div className="w-full max-w-xl mx-auto p-[var(--space-lg)] lg:p-[var(--space-3xl)] flex flex-col gap-[var(--space-xl)]">
       {/* Avatar + name + edit button */}
       <div className="flex flex-col gap-[var(--space-md)]">
         <div className="flex items-center gap-[var(--space-lg)]">

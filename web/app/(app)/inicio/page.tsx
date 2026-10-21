@@ -39,7 +39,7 @@ export default function InicioPage() {
   }
 
   return (
-    <div className="p-[var(--space-lg)] flex flex-col gap-[var(--space-lg)]">
+    <div className="w-full max-w-2xl mx-auto p-[var(--space-lg)] lg:p-[var(--space-3xl)] flex flex-col gap-[var(--space-lg)]">
       {/* Header */}
       <div className="flex items-center justify-between gap-[var(--space-md)]">
         <h1 className="text-heading-h2 text-text-primary">Início</h1>
