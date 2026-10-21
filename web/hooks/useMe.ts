@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
-import { apiFetch } from "../lib/api.js";
-import { keys } from "../lib/keys.js";
+import { apiFetch } from "../lib/api";
+import { keys } from "../lib/keys";
 
 // The User type returned by GET /me (API omits providerId)
 type MeUser = {
