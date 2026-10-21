@@ -1,0 +1,20 @@
+{
+  "name": "fut",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "pnpm --parallel --filter web --filter api dev",
+    "build": "pnpm --filter shared build && pnpm --filter web --filter api build",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "pnpm --filter shared --filter api --filter web typecheck",
+    "test": "pnpm --filter api test"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.5.0"
+  }
+}

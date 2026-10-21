@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Provider {
+  GOOGLE
+  DISCORD
+}
+
+enum RoomStatus {
+  OPEN
+  LOCKED
+  DRAWN
+  CANCELED
+  FINISHED
+}
+
+enum MemberRole {
+  PLAYER
+  CO_ORGANIZER
+  ORGANIZER
+}
+
+enum PlayRole {
+  LINE
+  GOALKEEPER
+}
+
+enum MemberStatus {
+  PENDING
+  CONFIRMED
+  WAITLIST
+  REJECTED
+  LEFT
+}
+
+model User {
+  id                String       @id @default(cuid())
+  provider          Provider
+  providerId        String
+  email             String?
+  name              String
+  nickname          String?
+  phone             String?
+  preferredPosition String?
+  avatarUrl         String?
+  createdAt         DateTime     @default(now())
+  members           RoomMember[]
+  roomsOwned        Room[]       @relation("Owner")
+
+  @@unique([provider, providerId])
+}
+
+model Room {
+  id               String       @id @default(cuid())
+  title            String
+  location         String
+  startsAt         DateTime
+  lineSlots        Int
+  teamSize         Int          @default(4)
+  goalkeeperSlots  Int          @default(2)
+  requireApproval  Boolean      @default(true)
+  status           RoomStatus   @default(OPEN)
+  ownerId          String
+  owner            User         @relation("Owner", fields: [ownerId], references: [id])
+  members          RoomMember[]
+  invites          Invite[]
+  draws            Draw[]
+  createdAt        DateTime     @default(now())
+}
+
+model RoomMember {
+  id               String       @id @default(cuid())
+  roomId           String
+  userId           String
+  role             MemberRole   @default(PLAYER)
+  playRole         PlayRole
+  status           MemberStatus @default(PENDING)
+  waitlistPosition Int?
+  requestedAt      DateTime     @default(now())
+  decidedAt        DateTime?
+  decidedById      String?
+  invitedById      String?
+  room             Room         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+  @@index([roomId, status, playRole])
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  roomId      String
+  tokenHash   String    @unique
+  createdById String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedById    String?
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Draw {
+  id          String     @id @default(cuid())
+  roomId      String
+  createdAt   DateTime   @default(now())
+  createdById String
+  teams       DrawTeam[]
+  room        Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model DrawTeam {
+  id        String   @id @default(cuid())
+  drawId    String
+  name      String
+  playerIds String[]
+  draw      Draw     @relation(fields: [drawId], references: [id], onDelete: Cascade)
+}

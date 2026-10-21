@@ -1,0 +1,21 @@
+node_modules/
+.next/
+dist/
+build/
+.env
+.env.local
+.env.production
+
+# pnpm
+.pnpm-store/
+
+# logs
+*.log
+pino*.log
+
+# prisma
+prisma/migrations/*.sql.bak
+
+# OS
+.DS_Store
+Thumbs.db

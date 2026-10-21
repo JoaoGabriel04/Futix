@@ -1,0 +1,184 @@
+@import "tailwindcss";
+@source "../app/**/*.{tsx,ts}";
+@source "../components/**/*.{tsx,ts}";
+
+/* ─────────────────────────────────────────
+   Design tokens — fonte: Figma 0321OSdaqpTOfpi4Rh0Mec
+   Coleção "Cores", modo "Escuro"
+   ───────────────────────────────────────── */
+:root {
+  /* Background */
+  --color-bg-app: #0e0f11;
+  --color-bg-surface: #1a1b1f;
+  --color-bg-raised: #212328;
+  --color-bg-sidebar: #141518;
+
+  /* Text */
+  --color-text-primary: #f1f1ee;
+  --color-text-secondary: #b3b6bf;
+  --color-text-muted: #8a8e99;
+  --color-text-on-accent: #0e0f11;
+
+  /* Accent */
+  --color-accent-default: #ffd60a;
+  --color-accent-subtle: #ffd60a24;
+
+  /* Border */
+  --color-border-default: #2b2d33;
+  --color-border-strong: #3a3d45;
+
+  /* Status */
+  --color-status-success: #2fd27b;
+  --color-status-success-subtle: #2fd27b24;
+  --color-status-warning: #ff9f43;
+  --color-status-warning-subtle: #ff9f4324;
+  --color-status-danger: #ff5a4e;
+  --color-status-danger-subtle: #ff5a4e24;
+  --color-status-info: #5aa9ff;
+  --color-status-info-subtle: #5aa9ff24;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  /* Border radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  /* Typography — Inter */
+  --font-display-h1-size: 28px;
+  --font-display-h1-weight: 700;
+  --font-display-h1-line-height: 34px;
+  --font-display-h1-letter-spacing: 0;
+
+  --font-heading-h2-size: 22px;
+  --font-heading-h2-weight: 700;
+  --font-heading-h2-line-height: 28px;
+
+  --font-heading-h3-size: 17px;
+  --font-heading-h3-weight: 600;
+  --font-heading-h3-line-height: 22px;
+
+  --font-body-regular-size: 15px;
+  --font-body-regular-weight: 400;
+  --font-body-regular-line-height: 22px;
+
+  --font-body-strong-size: 15px;
+  --font-body-strong-weight: 600;
+  --font-body-strong-line-height: 22px;
+
+  --font-caption-regular-size: 13px;
+  --font-caption-regular-weight: 400;
+  --font-caption-regular-line-height: 18px;
+
+  --font-caption-strong-size: 13px;
+  --font-caption-strong-weight: 600;
+  --font-caption-strong-line-height: 18px;
+
+  --font-overline-size: 11px;
+  --font-overline-weight: 600;
+  --font-overline-line-height: 14px;
+  --font-overline-letter-spacing: 6px;
+}
+
+/* ─────────────────────────────────────────
+   Tailwind v4 @theme — mapeamento de tokens
+   ───────────────────────────────────────── */
+@theme {
+  /* Colors */
+  --color-bg-app: var(--color-bg-app);
+  --color-bg-surface: var(--color-bg-surface);
+  --color-bg-raised: var(--color-bg-raised);
+  --color-bg-sidebar: var(--color-bg-sidebar);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-on-accent: var(--color-text-on-accent);
+  --color-accent-default: var(--color-accent-default);
+  --color-accent-subtle: var(--color-accent-subtle);
+  --color-border-default: var(--color-border-default);
+  --color-border-strong: var(--color-border-strong);
+  --color-status-success: var(--color-status-success);
+  --color-status-success-subtle: var(--color-status-success-subtle);
+  --color-status-warning: var(--color-status-warning);
+  --color-status-warning-subtle: var(--color-status-warning-subtle);
+  --color-status-danger: var(--color-status-danger);
+  --color-status-danger-subtle: var(--color-status-danger-subtle);
+  --color-status-info: var(--color-status-info);
+  --color-status-info-subtle: var(--color-status-info-subtle);
+
+  /* Font family — --font-sans é o nome reconhecido pelo Tailwind v4 para a utility font-sans */
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─────────────────────────────────────────
+   Base
+   ───────────────────────────────────────── */
+html {
+  background-color: var(--color-bg-app);
+  color: var(--color-text-primary);
+  font-family: var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─────────────────────────────────────────
+   Utilitários de tipografia
+   ───────────────────────────────────────── */
+.text-display-h1 {
+  font-size: var(--font-display-h1-size);
+  font-weight: var(--font-display-h1-weight);
+  line-height: var(--font-display-h1-line-height);
+  letter-spacing: var(--font-display-h1-letter-spacing);
+}
+
+.text-heading-h2 {
+  font-size: var(--font-heading-h2-size);
+  font-weight: var(--font-heading-h2-weight);
+  line-height: var(--font-heading-h2-line-height);
+}
+
+.text-heading-h3 {
+  font-size: var(--font-heading-h3-size);
+  font-weight: var(--font-heading-h3-weight);
+  line-height: var(--font-heading-h3-line-height);
+}
+
+.text-body-regular {
+  font-size: var(--font-body-regular-size);
+  font-weight: var(--font-body-regular-weight);
+  line-height: var(--font-body-regular-line-height);
+}
+
+.text-body-strong {
+  font-size: var(--font-body-strong-size);
+  font-weight: var(--font-body-strong-weight);
+  line-height: var(--font-body-strong-line-height);
+}
+
+.text-caption-regular {
+  font-size: var(--font-caption-regular-size);
+  font-weight: var(--font-caption-regular-weight);
+  line-height: var(--font-caption-regular-line-height);
+}
+
+.text-caption-strong {
+  font-size: var(--font-caption-strong-size);
+  font-weight: var(--font-caption-strong-weight);
+  line-height: var(--font-caption-strong-line-height);
+}
+
+.text-overline {
+  font-size: var(--font-overline-size);
+  font-weight: var(--font-overline-weight);
+  line-height: var(--font-overline-line-height);
+  letter-spacing: var(--font-overline-letter-spacing);
+  text-transform: uppercase;
+}
