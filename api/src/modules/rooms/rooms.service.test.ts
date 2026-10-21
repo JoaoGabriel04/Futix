@@ -1,23 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { RoomMember, Room } from "@prisma/client";
+import type { Room } from "@prisma/client";
 
 // ── mock prisma ────────────────────────────────────────────────────────────────
 // vi.hoisted() runs before module imports, ensuring the mock objects exist
 // by the time vi.mock's factory is executed. This is required for ESM.
 
-const { prismaMock, mockTx } = vi.hoisted(() => {
-  const mockTx = {
-    room: { create: vi.fn() },
-    roomMember: { create: vi.fn() },
-  };
-
+const { prismaMock } = vi.hoisted(() => {
   const prismaMock = {
-    $transaction: vi.fn(),
-    room: { findMany: vi.fn(), findUnique: vi.fn() },
+    room: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
     roomMember: { findMany: vi.fn() },
   };
 
-  return { prismaMock, mockTx };
+  return { prismaMock };
 });
 
 vi.mock("../../lib/prisma.js", () => ({
@@ -63,15 +57,6 @@ const FAKE_ROOM = {
   createdAt: new Date(),
 } as unknown as Room;
 
-// ── helpers ────────────────────────────────────────────────────────────────────
-
-/** Configures $transaction to invoke the callback with mockTx and return its result. */
-function setupTransaction() {
-  prismaMock.$transaction.mockImplementation(
-    async (cb: (tx: typeof mockTx) => Promise<unknown>) => cb(mockTx),
-  );
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Regra 2 — createRoom validations
 // ══════════════════════════════════════════════════════════════════════════════
@@ -90,8 +75,7 @@ describe("createRoom — Regra 2 validations", () => {
       status: 400,
     });
 
-    // Transaction must NOT have been called
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.room.create).not.toHaveBeenCalled();
   });
 
   // Test 2: startsAt exactly now (same millisecond boundary) → INVALID_DATE
@@ -107,18 +91,16 @@ describe("createRoom — Regra 2 validations", () => {
       status: 400,
     });
 
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.room.create).not.toHaveBeenCalled();
   });
 
-  // Test 3: startsAt in the future → calls $transaction and returns room
-  it("calls prisma.$transaction and returns the created room when startsAt is in the future", async () => {
-    setupTransaction();
-    mockTx.room.create.mockResolvedValue(FAKE_ROOM);
-    mockTx.roomMember.create.mockResolvedValue({} as RoomMember);
+  // Test 3: startsAt in the future → calls room.create and returns room
+  it("calls prisma.room.create with nested member and returns the room", async () => {
+    prismaMock.room.create.mockResolvedValue(FAKE_ROOM);
 
     const result = await createRoom("user-1", BASE_INPUT);
 
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(prismaMock.room.create).toHaveBeenCalledTimes(1);
     expect(result).toEqual(FAKE_ROOM);
   });
 
@@ -129,7 +111,7 @@ describe("createRoom — Regra 2 validations", () => {
       code: "INVALID_LINE_SLOTS",
       status: 400,
     });
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.room.create).not.toHaveBeenCalled();
   });
 
   // Test 3c: teamSize < 1 → INVALID_TEAM_SIZE
@@ -139,7 +121,7 @@ describe("createRoom — Regra 2 validations", () => {
       code: "INVALID_TEAM_SIZE",
       status: 400,
     });
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.room.create).not.toHaveBeenCalled();
   });
 
   // Test 3d: goalkeeperSlots < 0 → INVALID_GOALKEEPER_SLOTS
@@ -149,29 +131,27 @@ describe("createRoom — Regra 2 validations", () => {
       code: "INVALID_GOALKEEPER_SLOTS",
       status: 400,
     });
-    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    expect(prismaMock.room.create).not.toHaveBeenCalled();
   });
 
-  // Test 4: valid input → transaction creates both Room and RoomMember
-  it("creates both a Room and an ORGANIZER RoomMember inside the transaction", async () => {
-    setupTransaction();
-    mockTx.room.create.mockResolvedValue(FAKE_ROOM);
-    mockTx.roomMember.create.mockResolvedValue({} as RoomMember);
+  // Test 4: valid input → room.create called with nested ORGANIZER RoomMember
+  it("creates Room with nested ORGANIZER RoomMember in the correct shape", async () => {
+    prismaMock.room.create.mockResolvedValue(FAKE_ROOM);
 
     await createRoom("user-1", BASE_INPUT);
 
-    expect(mockTx.room.create).toHaveBeenCalledTimes(1);
-    expect(mockTx.roomMember.create).toHaveBeenCalledTimes(1);
-
-    // Verify RoomMember is created with ORGANIZER role and CONFIRMED status
-    expect(mockTx.roomMember.create).toHaveBeenCalledWith(
+    expect(prismaMock.room.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          roomId: FAKE_ROOM.id,
-          userId: "user-1",
-          role: "ORGANIZER",
-          status: "CONFIRMED",
-          playRole: "LINE",
+          ownerId: "user-1",
+          members: {
+            create: expect.objectContaining({
+              userId: "user-1",
+              role: "ORGANIZER",
+              status: "CONFIRMED",
+              playRole: "LINE",
+            }),
+          },
         }),
       }),
     );

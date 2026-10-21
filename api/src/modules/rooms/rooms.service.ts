@@ -51,31 +51,25 @@ export async function createRoom(userId: string, data: CreateRoomInput): Promise
   if (data.teamSize < 1) throw makeError("Jogadores por time deve ser no mínimo 1.", 400, "INVALID_TEAM_SIZE");
   if (data.goalkeeperSlots < 0) throw makeError("Vagas de goleiro não pode ser negativo.", 400, "INVALID_GOALKEEPER_SLOTS");
 
-  return prisma.$transaction(async (tx) => {
-    const room = await tx.room.create({
-      data: {
-        title: data.title,
-        location: data.location,
-        startsAt: new Date(data.startsAt),
-        lineSlots: data.lineSlots,
-        teamSize: data.teamSize,
-        goalkeeperSlots: data.goalkeeperSlots,
-        requireApproval: data.requireApproval,
-        ownerId: userId,
+  return prisma.room.create({
+    data: {
+      title: data.title,
+      location: data.location,
+      startsAt: new Date(data.startsAt),
+      lineSlots: data.lineSlots,
+      teamSize: data.teamSize,
+      goalkeeperSlots: data.goalkeeperSlots,
+      requireApproval: data.requireApproval,
+      ownerId: userId,
+      members: {
+        create: {
+          userId,
+          role: "ORGANIZER",
+          status: "CONFIRMED",
+          playRole: data.playRole,
+        },
       },
-    });
-
-    await tx.roomMember.create({
-      data: {
-        roomId: room.id,
-        userId,
-        role: "ORGANIZER",
-        status: "CONFIRMED",
-        playRole: data.playRole,
-      },
-    });
-
-    return room;
+    },
   });
 }
 
