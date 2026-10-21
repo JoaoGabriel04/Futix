@@ -2,7 +2,6 @@
 
 import { Calendar, Home, Shield, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Avatar } from "../ui/Avatar";
@@ -64,13 +63,13 @@ export function Sidebar({
     >
       {/* Logo */}
       <div className="flex gap-[var(--space-md)] items-center">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src="/logo-futix-transparent.png"
           alt="Futix"
           width={36}
           height={36}
           className="shrink-0"
-          priority
         />
         <span className="text-heading-h2 text-text-primary">Futix</span>
       </div>

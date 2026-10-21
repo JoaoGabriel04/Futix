@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export default function EntrarPage() {
@@ -7,12 +5,12 @@ export default function EntrarPage() {
     <div className="bg-bg-surface rounded-[var(--radius-lg)] p-[var(--space-3xl)] flex flex-col gap-[var(--space-xl)] w-full max-w-[390px]">
       <div className="flex flex-col gap-[var(--space-sm)]">
         <div className="flex items-center gap-[var(--space-md)]">
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src="/logo-futix-transparent.png"
             alt="Futix"
             width={44}
             height={44}
-            priority
           />
           <h1 className="text-display-h1 text-text-primary">Futix</h1>
         </div>
