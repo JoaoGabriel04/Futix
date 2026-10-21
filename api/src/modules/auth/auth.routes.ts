@@ -6,7 +6,7 @@ import DiscordStrategy from "passport-discord";
 import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { upsertUser } from "./auth.service.js";
-import { handleLogout, handleOAuthCallback } from "./auth.controller.js";
+import { handleLogout, handleOAuthCallback, handleRefresh } from "./auth.controller.js";
 
 // ── Passport strategies ──────────────────────────────────────────────────────
 
@@ -101,6 +101,7 @@ router.get(
   handleOAuthCallback,
 );
 
+router.post("/auth/refresh", handleRefresh);
 router.post("/auth/logout", requireAuth, handleLogout);
 
 export { router as authRouter };
