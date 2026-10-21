@@ -9,7 +9,7 @@ export async function getMeHandler(
 ): Promise<void> {
   try {
     const user = await getMe(req.userId);
-    const { providerId: _, ...safeUser } = user;
+    const { providerId: _, provider: __, ...safeUser } = user;
     res.json(safeUser);
   } catch (err) {
     next(err);
@@ -35,7 +35,7 @@ export async function updateMeHandler(
 
   try {
     const user = await updateMe(req.userId, parsed.data);
-    const { providerId: _, ...safeUser } = user;
+    const { providerId: _, provider: __, ...safeUser } = user;
     res.json(safeUser);
   } catch (err) {
     next(err);
@@ -56,7 +56,7 @@ export async function updateAvatarHandler(
 
   try {
     const user = await updateAvatar(req.userId, req.file.buffer, req.file.mimetype);
-    const { providerId: _, ...safeUser } = user;
+    const { providerId: _, provider: __, ...safeUser } = user;
     res.json(safeUser);
   } catch (err) {
     next(err);

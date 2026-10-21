@@ -5,7 +5,7 @@ import { clearAuthCookies, setAuthCookies } from "./auth.service.js";
 export function handleOAuthCallback(req: Request, res: Response): void {
   const passportUser = req.user;
 
-  if (passportUser === undefined) {
+  if (!passportUser) {
     res.redirect(`${env.WEB_URL}/entrar`);
     return;
   }
