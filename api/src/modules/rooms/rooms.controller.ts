@@ -5,6 +5,9 @@ import {
   listRooms,
   getRoom,
   updateRoom,
+  lockRoom,
+  unlockRoom,
+  cancelRoom,
 } from "./rooms.service.js";
 
 export async function createRoomHandler(
@@ -95,6 +98,72 @@ export async function updateRoomHandler(
 
   try {
     const room = await updateRoom(roomId, parsed.data);
+    res.json(room);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function lockRoomHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+
+  if (!roomId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ausente." },
+    });
+    return;
+  }
+
+  try {
+    const room = await lockRoom(req.userId, roomId);
+    res.json(room);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function unlockRoomHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+
+  if (!roomId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ausente." },
+    });
+    return;
+  }
+
+  try {
+    const room = await unlockRoom(req.userId, roomId);
+    res.json(room);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function cancelRoomHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+
+  if (!roomId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ausente." },
+    });
+    return;
+  }
+
+  try {
+    const room = await cancelRoom(req.userId, roomId);
     res.json(room);
   } catch (err) {
     next(err);

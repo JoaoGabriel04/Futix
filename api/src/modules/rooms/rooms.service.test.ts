@@ -7,8 +7,8 @@ import type { Room } from "@prisma/client";
 
 const { prismaMock } = vi.hoisted(() => {
   const prismaMock = {
-    room: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
-    roomMember: { findMany: vi.fn() },
+    room: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    roomMember: { findMany: vi.fn(), findFirst: vi.fn() },
   };
 
   return { prismaMock };
@@ -18,11 +18,19 @@ vi.mock("../../lib/prisma.js", () => ({
   prisma: prismaMock,
 }));
 
+vi.mock("../../socket.js", () => ({
+  getIo: () => ({ to: () => ({ emit: vi.fn() }) }),
+}));
+
 // Import service AFTER vi.mock declaration so the module receives the mocked prisma.
 import {
   createRoom,
   countVacancies,
   listRooms,
+  updateRoom,
+  lockRoom,
+  unlockRoom,
+  cancelRoom,
 } from "./rooms.service.js";
 
 // ── shared fixtures ────────────────────────────────────────────────────────────
@@ -255,5 +263,196 @@ describe("listRooms — Regra 6 confirmedLine / confirmedGoalkeepers", () => {
       confirmedLine: 0,
       confirmedGoalkeepers: 0,
     });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Regra 11 — updateRoom validations
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("updateRoom — Regra 11 validations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws ROOM_NOT_OPEN when room status is not OPEN", async () => {
+    const lockedRoom = {
+      ...FAKE_ROOM,
+      status: "LOCKED",
+      members: [],
+    };
+    prismaMock.room.findUnique.mockResolvedValue(lockedRoom);
+
+    await expect(updateRoom("room-1", { title: "Novo título" })).rejects.toMatchObject({
+      code: "ROOM_NOT_OPEN",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("throws SLOTS_BELOW_CONFIRMED when lineSlots is below confirmed LINE players", async () => {
+    const roomWithMembers = {
+      ...FAKE_ROOM,
+      status: "OPEN",
+      members: [
+        { playRole: "LINE" },
+        { playRole: "LINE" },
+        { playRole: "LINE" },
+      ],
+    };
+    prismaMock.room.findUnique.mockResolvedValue(roomWithMembers);
+
+    await expect(updateRoom("room-1", { lineSlots: 2 })).rejects.toMatchObject({
+      code: "SLOTS_BELOW_CONFIRMED",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("throws SLOTS_BELOW_CONFIRMED when goalkeeperSlots is below confirmed GOALKEEPER players", async () => {
+    const roomWithMembers = {
+      ...FAKE_ROOM,
+      status: "OPEN",
+      members: [
+        { playRole: "GOALKEEPER" },
+        { playRole: "GOALKEEPER" },
+      ],
+    };
+    prismaMock.room.findUnique.mockResolvedValue(roomWithMembers);
+
+    await expect(updateRoom("room-1", { goalkeeperSlots: 1 })).rejects.toMatchObject({
+      code: "SLOTS_BELOW_CONFIRMED",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("calls prisma.room.update when input is valid", async () => {
+    const roomWithMembers = {
+      ...FAKE_ROOM,
+      status: "OPEN",
+      members: [{ playRole: "LINE" }],
+    };
+    prismaMock.room.findUnique.mockResolvedValue(roomWithMembers);
+    prismaMock.room.update.mockResolvedValue({ ...FAKE_ROOM, lineSlots: 20 });
+
+    const result = await updateRoom("room-1", { lineSlots: 20 });
+
+    expect(prismaMock.room.update).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ lineSlots: 20 });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Regra 12 — lockRoom / unlockRoom
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("lockRoom — Regra 12", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws ROOM_NOT_OPEN when room status is not OPEN", async () => {
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "LOCKED" });
+
+    await expect(lockRoom("user-1", "room-1")).rejects.toMatchObject({
+      code: "ROOM_NOT_OPEN",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("updates status to LOCKED when room is OPEN", async () => {
+    const lockedRoom = { ...FAKE_ROOM, status: "LOCKED" };
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "OPEN" });
+    prismaMock.room.update.mockResolvedValue(lockedRoom);
+
+    const result = await lockRoom("user-1", "room-1");
+
+    expect(prismaMock.room.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "LOCKED" } }),
+    );
+    expect(result).toMatchObject({ status: "LOCKED" });
+  });
+});
+
+describe("unlockRoom — Regra 12", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws ROOM_NOT_LOCKED when room status is not LOCKED", async () => {
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "OPEN" });
+
+    await expect(unlockRoom("user-1", "room-1")).rejects.toMatchObject({
+      code: "ROOM_NOT_LOCKED",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("updates status to OPEN when room is LOCKED", async () => {
+    const openRoom = { ...FAKE_ROOM, status: "OPEN" };
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "LOCKED" });
+    prismaMock.room.update.mockResolvedValue(openRoom);
+
+    const result = await unlockRoom("user-1", "room-1");
+
+    expect(prismaMock.room.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "OPEN" } }),
+    );
+    expect(result).toMatchObject({ status: "OPEN" });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Regra 15 — cancelRoom
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("cancelRoom — Regra 15", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("throws NOT_ORGANIZER (403) when user is not ORGANIZER", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue(null);
+
+    await expect(cancelRoom("user-2", "room-1")).rejects.toMatchObject({
+      code: "NOT_ORGANIZER",
+      status: 403,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("throws INVALID_STATUS when room is already CANCELED", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "ORGANIZER" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "CANCELED" });
+
+    await expect(cancelRoom("user-1", "room-1")).rejects.toMatchObject({
+      code: "INVALID_STATUS",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  it("updates status to CANCELED when user is ORGANIZER and room is OPEN", async () => {
+    const canceledRoom = { ...FAKE_ROOM, status: "CANCELED" };
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "ORGANIZER" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "OPEN" });
+    prismaMock.room.update.mockResolvedValue(canceledRoom);
+
+    const result = await cancelRoom("user-1", "room-1");
+
+    expect(prismaMock.room.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "CANCELED" } }),
+    );
+    expect(result).toMatchObject({ status: "CANCELED" });
   });
 });

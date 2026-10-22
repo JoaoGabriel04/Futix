@@ -1,6 +1,7 @@
 import type { Room, RoomMember } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import type { CreateRoomInput, UpdateRoomInput } from "@fut/shared";
+import { getIo } from "../../socket.js";
 
 // ── types ──────────────────────────────────────────────────────────────────────
 
@@ -160,9 +161,37 @@ export async function updateRoom(roomId: string, data: UpdateRoomInput): Promise
     assertFutureDate(data.startsAt);
   }
 
-  const existing = await prisma.room.findUnique({ where: { id: roomId }, select: { id: true } });
-  if (!existing) {
-    throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  // Regra 11 — busca sala com contagens de confirmados
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    include: {
+      members: {
+        where: { status: "CONFIRMED" },
+        select: { playRole: true },
+      },
+    },
+  });
+
+  if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  if (room.status !== "OPEN") throw makeError("Só é possível alterar o formato de uma sala aberta.", 400, "ROOM_NOT_OPEN");
+
+  const confirmedLine = room.members.filter((m) => m.playRole === "LINE").length;
+  const confirmedGoalkeepers = room.members.filter((m) => m.playRole === "GOALKEEPER").length;
+
+  if (data.lineSlots !== undefined && data.lineSlots < confirmedLine) {
+    throw makeError(
+      `Não é possível reduzir as vagas abaixo dos ${confirmedLine} jogadores confirmados.`,
+      400,
+      "SLOTS_BELOW_CONFIRMED",
+    );
+  }
+
+  if (data.goalkeeperSlots !== undefined && data.goalkeeperSlots < confirmedGoalkeepers) {
+    throw makeError(
+      `Não é possível reduzir as vagas abaixo dos ${confirmedGoalkeepers} goleiros confirmados.`,
+      400,
+      "SLOTS_BELOW_CONFIRMED",
+    );
   }
 
   return prisma.room.update({
@@ -177,6 +206,43 @@ export async function updateRoom(roomId: string, data: UpdateRoomInput): Promise
       ...(data.requireApproval !== undefined && { requireApproval: data.requireApproval }),
     },
   });
+}
+
+export async function lockRoom(userId: string, roomId: string): Promise<Room> {
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+
+  if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  if (room.status !== "OPEN") throw makeError("Só é possível travar uma sala aberta.", 400, "ROOM_NOT_OPEN");
+
+  return prisma.room.update({ where: { id: roomId }, data: { status: "LOCKED" } });
+}
+
+export async function unlockRoom(userId: string, roomId: string): Promise<Room> {
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+
+  if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  if (room.status !== "LOCKED") throw makeError("A sala não está travada.", 400, "ROOM_NOT_LOCKED");
+
+  return prisma.room.update({ where: { id: roomId }, data: { status: "OPEN" } });
+}
+
+export async function cancelRoom(userId: string, roomId: string): Promise<Room> {
+  const member = await prisma.roomMember.findFirst({ where: { roomId, userId, role: "ORGANIZER" } });
+  if (!member) throw makeError("Apenas o organizador pode cancelar a sala.", 403, "NOT_ORGANIZER");
+
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+  if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  if (room.status === "CANCELED" || room.status === "FINISHED") {
+    throw makeError("Não é possível cancelar uma sala já finalizada ou cancelada.", 400, "INVALID_STATUS");
+  }
+
+  const updated = await prisma.room.update({ where: { id: roomId }, data: { status: "CANCELED" } });
+
+  try {
+    getIo().to(`room:${roomId}`).emit("room:updated", { roomId, status: "CANCELED" });
+  } catch {}
+
+  return updated;
 }
 
 export async function countVacancies(
