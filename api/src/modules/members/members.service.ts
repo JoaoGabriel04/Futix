@@ -247,6 +247,62 @@ export async function promoteMember(
 }
 
 /**
+ * Regra 10 — Nomear um membro como CO_ORGANIZER.
+ * Apenas o ORGANIZER pode nomear; limite de 2 co-organizadores por sala.
+ */
+export async function addCoOrganizer(
+  requesterId: string,
+  roomId: string,
+  targetUserId: string,
+): Promise<RoomMember> {
+  const requester = await prisma.roomMember.findFirst({ where: { roomId, userId: requesterId } });
+  if (!requester || requester.role !== "ORGANIZER")
+    throw makeError("Apenas o organizador pode nomear co-organizadores.", 403, "NOT_ORGANIZER");
+
+  const target = await prisma.roomMember.findFirst({ where: { roomId, userId: targetUserId } });
+  if (!target) throw makeError("Usuário não é membro desta sala.", 404, "NOT_MEMBER");
+  if (target.status !== "CONFIRMED")
+    throw makeError("Apenas membros confirmados podem ser co-organizadores.", 400, "NOT_CONFIRMED");
+  if (target.role === "ORGANIZER")
+    throw makeError("O organizador não pode ser nomeado co-organizador.", 400, "IS_ORGANIZER");
+  if (target.role === "CO_ORGANIZER")
+    throw makeError("Usuário já é co-organizador.", 409, "ALREADY_CO_ORGANIZER");
+
+  const coOrgCount = await prisma.roomMember.count({ where: { roomId, role: "CO_ORGANIZER" } });
+  if (coOrgCount >= 2)
+    throw makeError("A sala já possui o máximo de 2 co-organizadores.", 409, "CO_ORGANIZER_LIMIT");
+
+  return prisma.roomMember.update({
+    where: { id: target.id },
+    data: { role: "CO_ORGANIZER" },
+  });
+}
+
+/**
+ * Regra 10 — Remover a função de CO_ORGANIZER de um membro (volta a PLAYER).
+ * Apenas o ORGANIZER pode remover.
+ */
+export async function removeCoOrganizer(
+  requesterId: string,
+  roomId: string,
+  targetUserId: string,
+): Promise<RoomMember> {
+  const requester = await prisma.roomMember.findFirst({ where: { roomId, userId: requesterId } });
+  if (!requester || requester.role !== "ORGANIZER")
+    throw makeError("Apenas o organizador pode remover co-organizadores.", 403, "NOT_ORGANIZER");
+
+  const target = await prisma.roomMember.findFirst({ where: { roomId, userId: targetUserId } });
+  if (!target) throw makeError("Usuário não é membro desta sala.", 404, "NOT_MEMBER");
+  if (target.role !== "CO_ORGANIZER")
+    throw makeError("Usuário não é co-organizador.", 400, "INVALID_STATUS");
+
+  return prisma.roomMember.update({
+    where: { id: target.id },
+    data: { role: "PLAYER" },
+  });
+}
+
+/**
  * Remove a member from a room (organizer-initiated).
  * ORGANIZER cannot be removed. PENDING/WAITLIST → deleted; otherwise → LEFT.
  */

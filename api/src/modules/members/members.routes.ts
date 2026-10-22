@@ -8,6 +8,8 @@ import {
   handleReject,
   handlePromote,
   handleRemove,
+  handleAddCoOrganizer,
+  handleRemoveCoOrganizer,
 } from "./members.controller.js";
 
 const router: IRouter = Router();
@@ -19,5 +21,8 @@ router.post("/:id/members/:memberId/approve", requireAuth, requireOrganizerRole,
 router.post("/:id/members/:memberId/reject", requireAuth, requireOrganizerRole, handleReject);
 router.post("/:id/members/:memberId/promote", requireAuth, requireOrganizerRole, handlePromote);
 router.post("/:id/members/:memberId/remove", requireAuth, requireOrganizerRole, handleRemove);
+
+router.put("/:id/co-organizers/:userId", requireAuth, handleAddCoOrganizer);
+router.delete("/:id/co-organizers/:userId", requireAuth, handleRemoveCoOrganizer);
 
 export { router as membersRouter };

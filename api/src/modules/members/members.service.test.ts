@@ -36,6 +36,8 @@ import {
   approveMember,
   rejectMember,
   promoteMember,
+  addCoOrganizer,
+  removeCoOrganizer,
 } from "./members.service.js";
 
 // ── shared fixtures ────────────────────────────────────────────────────────────
@@ -390,5 +392,158 @@ describe("promoteMember — Regra 8", () => {
     );
     expect(result.status).toBe("CONFIRMED");
     expect(result.waitlistPosition).toBeNull();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Regra 10 — addCoOrganizer
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("addCoOrganizer — Regra 10", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const organizerMember = fakeMember({ userId: "organizer-1", role: "ORGANIZER", status: "CONFIRMED" });
+  const coOrgMember = fakeMember({ id: "member-2", userId: "co-org-1", role: "CO_ORGANIZER", status: "CONFIRMED" });
+  const confirmedPlayer = fakeMember({ id: "member-3", userId: "player-1", role: "PLAYER", status: "CONFIRMED" });
+
+  // Test 14: CO_ORGANIZER tenta nomear → NOT_ORGANIZER (403)
+  it("throws NOT_ORGANIZER (403) when requester is a CO_ORGANIZER", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValueOnce(
+      fakeMember({ userId: "co-org-1", role: "CO_ORGANIZER", status: "CONFIRMED" }),
+    );
+
+    await expect(addCoOrganizer("co-org-1", "room-1", "player-1")).rejects.toMatchObject({
+      code: "NOT_ORGANIZER",
+      status: 403,
+    });
+
+    expect(prismaMock.roomMember.update).not.toHaveBeenCalled();
+  });
+
+  // Test 15: Alvo não é membro → NOT_MEMBER (404)
+  it("throws NOT_MEMBER (404) when the target user is not a member of the room", async () => {
+    prismaMock.roomMember.findFirst
+      .mockResolvedValueOnce(organizerMember)   // requester lookup
+      .mockResolvedValueOnce(null);             // target lookup
+
+    await expect(addCoOrganizer("organizer-1", "room-1", "nonexistent-user")).rejects.toMatchObject({
+      code: "NOT_MEMBER",
+      status: 404,
+    });
+
+    expect(prismaMock.roomMember.update).not.toHaveBeenCalled();
+  });
+
+  // Test 16: Alvo não é CONFIRMED → NOT_CONFIRMED (400)
+  it("throws NOT_CONFIRMED (400) when the target member is not CONFIRMED", async () => {
+    prismaMock.roomMember.findFirst
+      .mockResolvedValueOnce(organizerMember)
+      .mockResolvedValueOnce(fakeMember({ id: "member-3", userId: "player-1", role: "PLAYER", status: "PENDING" }));
+
+    await expect(addCoOrganizer("organizer-1", "room-1", "player-1")).rejects.toMatchObject({
+      code: "NOT_CONFIRMED",
+      status: 400,
+    });
+
+    expect(prismaMock.roomMember.update).not.toHaveBeenCalled();
+  });
+
+  // Test 17: Já existem 2 co-organizadores → CO_ORGANIZER_LIMIT (409)
+  it("throws CO_ORGANIZER_LIMIT (409) when the room already has 2 co-organizers", async () => {
+    prismaMock.roomMember.findFirst
+      .mockResolvedValueOnce(organizerMember)
+      .mockResolvedValueOnce(confirmedPlayer);
+    prismaMock.roomMember.count.mockResolvedValue(2); // já tem 2 co-organizadores
+
+    await expect(addCoOrganizer("organizer-1", "room-1", "player-1")).rejects.toMatchObject({
+      code: "CO_ORGANIZER_LIMIT",
+      status: 409,
+    });
+
+    expect(prismaMock.roomMember.update).not.toHaveBeenCalled();
+  });
+
+  // Test 18: Caso válido → atualiza role para CO_ORGANIZER
+  it("updates role to CO_ORGANIZER when all conditions are met", async () => {
+    const updated = fakeMember({ id: "member-3", userId: "player-1", role: "CO_ORGANIZER", status: "CONFIRMED" });
+
+    prismaMock.roomMember.findFirst
+      .mockResolvedValueOnce(organizerMember)
+      .mockResolvedValueOnce(confirmedPlayer);
+    prismaMock.roomMember.count.mockResolvedValue(1); // apenas 1 co-organizador existente
+    prismaMock.roomMember.update.mockResolvedValue(updated);
+
+    const result = await addCoOrganizer("organizer-1", "room-1", "player-1");
+
+    expect(prismaMock.roomMember.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "member-3" },
+        data: { role: "CO_ORGANIZER" },
+      }),
+    );
+    expect(result.role).toBe("CO_ORGANIZER");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Regra 10 — removeCoOrganizer
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("removeCoOrganizer — Regra 10", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const organizerMember = fakeMember({ userId: "organizer-1", role: "ORGANIZER", status: "CONFIRMED" });
+  const coOrgMember = fakeMember({ id: "member-2", userId: "co-org-1", role: "CO_ORGANIZER", status: "CONFIRMED" });
+
+  // Test 19: CO_ORGANIZER tenta remover → NOT_ORGANIZER (403)
+  it("throws NOT_ORGANIZER (403) when requester is a CO_ORGANIZER", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValueOnce(
+      fakeMember({ userId: "co-org-1", role: "CO_ORGANIZER", status: "CONFIRMED" }),
+    );
+
+    await expect(removeCoOrganizer("co-org-1", "room-1", "co-org-2")).rejects.toMatchObject({
+      code: "NOT_ORGANIZER",
+      status: 403,
+    });
+
+    expect(prismaMock.roomMember.update).not.toHaveBeenCalled();
+  });
+
+  // Test 20: Alvo não é CO_ORGANIZER → INVALID_STATUS (400)
+  it("throws INVALID_STATUS (400) when the target member is not a CO_ORGANIZER", async () => {
+    prismaMock.roomMember.findFirst
+      .mockResolvedValueOnce(organizerMember)
+      .mockResolvedValueOnce(fakeMember({ id: "member-3", userId: "player-1", role: "PLAYER", status: "CONFIRMED" }));
+
+    await expect(removeCoOrganizer("organizer-1", "room-1", "player-1")).rejects.toMatchObject({
+      code: "INVALID_STATUS",
+      status: 400,
+    });
+
+    expect(prismaMock.roomMember.update).not.toHaveBeenCalled();
+  });
+
+  // Test 21: Caso válido → atualiza role para PLAYER
+  it("updates role to PLAYER when target is a CO_ORGANIZER", async () => {
+    const updated = fakeMember({ id: "member-2", userId: "co-org-1", role: "PLAYER", status: "CONFIRMED" });
+
+    prismaMock.roomMember.findFirst
+      .mockResolvedValueOnce(organizerMember)
+      .mockResolvedValueOnce(coOrgMember);
+    prismaMock.roomMember.update.mockResolvedValue(updated);
+
+    const result = await removeCoOrganizer("organizer-1", "room-1", "co-org-1");
+
+    expect(prismaMock.roomMember.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "member-2" },
+        data: { role: "PLAYER" },
+      }),
+    );
+    expect(result.role).toBe("PLAYER");
   });
 });

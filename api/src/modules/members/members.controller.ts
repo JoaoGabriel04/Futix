@@ -7,6 +7,8 @@ import {
   rejectMember,
   promoteMember,
   removeMember,
+  addCoOrganizer,
+  removeCoOrganizer,
 } from "./members.service.js";
 
 export async function handleJoin(
@@ -152,6 +154,52 @@ export async function handleRemove(
   try {
     await removeMember(req.userId, roomId, memberId);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleAddCoOrganizer(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+  const userId = req.params["userId"];
+
+  if (!roomId || !userId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ou usuário ausente." },
+    });
+    return;
+  }
+
+  try {
+    const member = await addCoOrganizer(req.userId, roomId, userId);
+    res.status(200).json(member);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleRemoveCoOrganizer(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+  const userId = req.params["userId"];
+
+  if (!roomId || !userId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ou usuário ausente." },
+    });
+    return;
+  }
+
+  try {
+    const member = await removeCoOrganizer(req.userId, roomId, userId);
+    res.status(200).json(member);
   } catch (err) {
     next(err);
   }
