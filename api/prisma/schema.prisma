@@ -51,6 +51,23 @@ enum WinnerRule {
   MAX_2_WINS
 }
 
+enum MatchStatus {
+  LIVE
+  PAUSED
+  FINISHED
+}
+
+enum MatchEndReason {
+  GOALS
+  TIME
+  MANUAL
+}
+
+enum MatchEventType {
+  GOAL
+  OWN_GOAL
+}
+
 model User {
   id                String       @id @default(cuid())
   provider          Provider
@@ -85,6 +102,7 @@ model Room {
   members          RoomMember[]
   invites          Invite[]
   draws            Draw[]
+  matches          Match[]
   createdAt        DateTime     @default(now())
   matchMinutes     Int          @default(10)
   winnerRule       WinnerRule   @default(MAX_2_WINS)
@@ -152,4 +170,55 @@ model PlayerWeight {
   player    User        @relation("WeightPlayer", fields: [playerId], references: [id])
 
   @@unique([ownerId, playerId])
+}
+
+model Match {
+  id             String          @id @default(cuid())
+  roomId         String
+  number         Int
+  teamAId        String
+  teamBId        String
+  teamAPlayerIds String[]
+  teamBPlayerIds String[]
+  limitSeconds   Int
+  status         MatchStatus     @default(LIVE)
+  startedAt      DateTime
+  elapsedSeconds Int             @default(0)
+  scoreA         Int             @default(0)
+  scoreB         Int             @default(0)
+  winnerTeamId   String?
+  endReason      MatchEndReason?
+  endedAt        DateTime?
+  createdById    String
+  events         MatchEvent[]
+  rotation       Rotation?
+  room           Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, number])
+}
+
+model MatchEvent {
+  id          String         @id @default(cuid())
+  matchId     String
+  type        MatchEventType
+  teamId      String
+  scorerId    String?
+  assistId    String?
+  atSecond    Int
+  undoneAt    DateTime?
+  createdById String
+  createdAt   DateTime       @default(now())
+  match       Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, undoneAt])
+}
+
+model Rotation {
+  id         String @id @default(cuid())
+  matchId    String @unique
+  kind       String
+  swaps      Json
+  courtAfter Json
+  queueAfter Json
+  match      Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
 }
