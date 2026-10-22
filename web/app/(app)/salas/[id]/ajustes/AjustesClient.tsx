@@ -97,26 +97,6 @@ export function AjustesClient({ id }: AjustesClientProps) {
     }
   }
 
-  async function handleLock() {
-    setLoadingAction("lock");
-    try {
-      await apiFetch(`/rooms/${id}/lock`, { method: "POST" });
-      await mutate();
-    } finally {
-      setLoadingAction(null);
-    }
-  }
-
-  async function handleUnlock() {
-    setLoadingAction("unlock");
-    try {
-      await apiFetch(`/rooms/${id}/unlock`, { method: "POST" });
-      await mutate();
-    } finally {
-      setLoadingAction(null);
-    }
-  }
-
   async function handleCancel() {
     const confirmed = window.confirm(
       "Tem certeza que deseja cancelar a sala? Essa ação não pode ser desfeita.",
@@ -262,26 +242,6 @@ export function AjustesClient({ id }: AjustesClientProps) {
       <section className="flex flex-col gap-[var(--space-lg)]">
         <span className="text-overline text-text-muted">STATUS DA SALA</span>
         <div className="flex flex-col gap-[var(--space-md)]">
-          {room.status === "OPEN" && (
-            <Button
-              variant="Secondary"
-              size="Large"
-              onClick={handleLock}
-              disabled={loadingAction === "lock"}
-            >
-              {loadingAction === "lock" ? "Travando..." : "Travar sala"}
-            </Button>
-          )}
-          {room.status === "LOCKED" && (
-            <Button
-              variant="Secondary"
-              size="Large"
-              onClick={handleUnlock}
-              disabled={loadingAction === "unlock"}
-            >
-              {loadingAction === "unlock" ? "Destravando..." : "Destravar sala"}
-            </Button>
-          )}
           <Button
             variant="Danger"
             size="Large"
