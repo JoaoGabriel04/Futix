@@ -2,6 +2,7 @@ export const ROOM_STATUS = {
   OPEN: "OPEN",
   LOCKED: "LOCKED",
   DRAWN: "DRAWN",
+  LIVE: "LIVE",
   CANCELED: "CANCELED",
   FINISHED: "FINISHED",
 } as const;
@@ -39,4 +40,26 @@ export const LIMITS = {
   AVATAR_MAX_BYTES: 2 * 1024 * 1024,
   AVATAR_ALLOWED_TYPES: ["image/jpeg", "image/png", "image/webp"],
   INVITE_TOKEN_BYTES: 32,
+} as const;
+
+export const GOALS_TO_WIN = 2;
+
+export const MATCH_MINUTES = {
+  min: 3,
+  max: 30,
+  default: 10,
+} as const;
+
+export const MAX_STARS_DEFAULT = 3;
+
+export const WEIGHT_VALUE = {
+  REGULAR: 1,
+  GOOD: 2,
+  STAR: 3,
+} as const;
+
+export const WEIGHT_LABEL_PT = {
+  REGULAR: "Regular",
+  GOOD: "Bom",
+  STAR: "Craque",
 } as const;
