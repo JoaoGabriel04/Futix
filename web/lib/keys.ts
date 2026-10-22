@@ -6,4 +6,5 @@ export const keys = {
   weights: (id: string) => `/rooms/${id}/weights`,
   roomSession: (id: string) => `/rooms/${id}/session`,
   matches: (id: string) => `/rooms/${id}/matches`,
+  match: (id: string) => `/matches/${id}`,
 } as const;

@@ -1,4 +1,4 @@
-type Status = "Confirmado" | "Pendente" | "Espera" | "Recusado" | "Organizador";
+type Status = "Confirmado" | "Pendente" | "Espera" | "Recusado" | "Organizador" | "Ao vivo";
 
 interface BadgeProps {
   status: Status;
@@ -11,6 +11,7 @@ const labelMap: Record<Status, string> = {
   Espera: "Lista de espera",
   Recusado: "Recusado",
   Organizador: "Organizador",
+  "Ao vivo": "Ao vivo",
 };
 
 const colorClass: Record<Status, string> = {
@@ -19,6 +20,7 @@ const colorClass: Record<Status, string> = {
   Espera: "bg-status-info-subtle text-status-info",
   Recusado: "bg-status-danger-subtle text-status-danger",
   Organizador: "bg-accent-subtle text-accent-default",
+  "Ao vivo": "bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]",
 };
 
 export function Badge({ status, className }: BadgeProps) {
@@ -33,6 +35,9 @@ export function Badge({ status, className }: BadgeProps) {
         .filter(Boolean)
         .join(" ")}
     >
+      {status === "Ao vivo" && (
+        <span className="inline-block w-[6px] h-[6px] rounded-full bg-[var(--color-status-danger)] mr-[4px]" />
+      )}
       {labelMap[status]}
     </span>
   );
