@@ -181,9 +181,11 @@ async function saveRotation(
   roomId: string,
   winnerTeamId: string | null,
   endReason: string,
+  tx?: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
 ): Promise<void> {
+  const client = tx ?? prisma;
   const result = computeRotation({ roomId, matchId, winnerTeamId, endReason });
-  await prisma.rotation.create({
+  await client.rotation.create({
     data: {
       matchId,
       kind: result.kind,
@@ -310,13 +312,15 @@ export async function pauseMatch(userId: string, matchId: string): Promise<Match
   const additionalSeconds = Math.floor((now.getTime() - match.startedAt.getTime()) / 1000);
   const newElapsed = match.elapsedSeconds + additionalSeconds;
 
-  const updated = await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      status: "PAUSED",
-      elapsedSeconds: newElapsed,
-      startedAt: now,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    return tx.match.update({
+      where: { id: matchId },
+      data: {
+        status: "PAUSED",
+        elapsedSeconds: newElapsed,
+        startedAt: now,
+      },
+    });
   });
 
   clearMatchTimer(matchId);
@@ -348,12 +352,14 @@ export async function resumeMatch(userId: string, matchId: string): Promise<Matc
   await requireOrganizer(userId, match.roomId);
 
   const now = new Date();
-  const updated = await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      status: "LIVE",
-      startedAt: now,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    return tx.match.update({
+      where: { id: matchId },
+      data: {
+        status: "LIVE",
+        startedAt: now,
+      },
+    });
   });
 
   const remainingSeconds = match.limitSeconds - match.elapsedSeconds;
@@ -461,7 +467,7 @@ export async function addGoal(
           : match.teamBId;
 
       const endedAt = new Date();
-      return tx.match.update({
+      const finishedMatch = await tx.match.update({
         where: { id: matchId },
         data: {
           scoreA,
@@ -472,6 +478,10 @@ export async function addGoal(
           endedAt,
         },
       });
+
+      await saveRotation(matchId, match.roomId, winnerTeamId, "GOALS", tx);
+
+      return finishedMatch;
     }
 
     return tx.match.update({
@@ -484,11 +494,6 @@ export async function addGoal(
 
   if (result.status === "FINISHED") {
     clearMatchTimer(matchId);
-
-    // Save rotation (stub)
-    try {
-      await saveRotation(matchId, match.roomId, result.winnerTeamId, "GOALS");
-    } catch { /* ignore rotation errors in tests */ }
 
     try {
       getIo().to(`room:${match.roomId}`).emit("match:ended", {
@@ -595,20 +600,21 @@ export async function endMatch(userId: string, matchId: string): Promise<MatchFo
       : null;
 
   const endedAt = new Date();
-  const updated = await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      status: "FINISHED",
-      endReason: "MANUAL",
-      winnerTeamId,
-      endedAt,
-    },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const finishedMatch = await tx.match.update({
+      where: { id: matchId },
+      data: {
+        status: "FINISHED",
+        endReason: "MANUAL",
+        winnerTeamId,
+        endedAt,
+      },
+    });
 
-  // Save rotation
-  try {
-    await saveRotation(matchId, match.roomId, winnerTeamId, "MANUAL");
-  } catch { /* ignore rotation errors in tests */ }
+    await saveRotation(matchId, match.roomId, winnerTeamId, "MANUAL", tx);
+
+    return finishedMatch;
+  });
 
   const result = toMatchForOrg(updated as PrismaMatch);
 
@@ -708,21 +714,22 @@ export async function _expireMatch(matchId: string): Promise<void> {
   const winnerTeamId = scoreA > scoreB ? match.teamAId : scoreB > scoreA ? match.teamBId : null;
 
   const endedAt = new Date();
-  const updated = await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      status: "FINISHED",
-      endReason: "TIME",
-      winnerTeamId,
-      endedAt,
-      elapsedSeconds: elapsed,
-    },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const finishedMatch = await tx.match.update({
+      where: { id: matchId },
+      data: {
+        status: "FINISHED",
+        endReason: "TIME",
+        winnerTeamId,
+        endedAt,
+        elapsedSeconds: elapsed,
+      },
+    });
 
-  // Save rotation
-  try {
-    await saveRotation(matchId, match.roomId, winnerTeamId, "TIME");
-  } catch { /* ignore rotation errors */ }
+    await saveRotation(matchId, match.roomId, winnerTeamId, "TIME", tx);
+
+    return finishedMatch;
+  });
 
   const result = toMatchForOrg(updated as PrismaMatch);
 

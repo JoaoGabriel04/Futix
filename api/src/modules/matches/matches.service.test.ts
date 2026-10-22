@@ -320,71 +320,26 @@ describe("addGoal — R24/R25", () => {
     expect(result.scoreA).toBe(GOALS_TO_WIN);
   });
 
-  // Test 11: Concurrency test — two simultaneous addGoal calls, only one finishes the match
-  it("concurrency: two simultaneous addGoal calls — only one increments score past GOALS_TO_WIN, match not double-finished", async () => {
-    // This test verifies the logic: score is recalculated from events inside the transaction.
-    // If both calls race, the second one sees scoreA >= GOALS_TO_WIN from the first and also
-    // tries to finish. In real DB this is prevented by row-level locks.
-    // Here we verify the calculation logic itself is correct by checking recalc from events.
-
-    // Simulate: match already has GOALS_TO_WIN-1 goals. Two goals are added concurrently.
-    // The transaction recalculates score. First tx sees GOALS_TO_WIN goals → finishes.
-    // The second tx would also see >= GOALS_TO_WIN → also finishes, but that's fine because
-    // in real DB, the second tx would see the FINISHED status and the route guard would block it.
-    // The key invariant: score is always computed from events, never incremented blindly.
-
-    prismaMock.match.findUnique.mockResolvedValue(
-      makeMatch({ status: "LIVE", scoreA: GOALS_TO_WIN - 1, scoreB: 0 }),
+  // Test 11: Concurrency test — second addGoal on an already-FINISHED match is rejected
+  it("(concurrency) second addGoal after match reaches GOALS_TO_WIN throws MATCH_FINISHED (409)", async () => {
+    // First call: match is LIVE with score 1-0, adding a goal finishes it
+    prismaMock.match.findUnique.mockResolvedValueOnce(
+      makeMatch({ status: "LIVE", scoreA: 1, scoreB: 0 }),
     );
     prismaMock.roomMember.findFirst.mockResolvedValue({ id: "m-1" });
+    prismaMock.$transaction.mockResolvedValueOnce(
+      makeMatch({ status: "FINISHED", scoreA: 2, scoreB: 0, endReason: "GOALS", winnerTeamId: TEAM_A_ID, endedAt: new Date() }),
+    );
     prismaMock.rotation.create.mockResolvedValue({});
+    await addGoal(USER_ORG, MATCH_ID, { teamId: TEAM_A_ID, scorerId: PLAYER_A1 });
 
-    let callCount = 0;
-    prismaMock.$transaction.mockImplementation(async (cb: (tx: typeof prismaMock) => Promise<unknown>) => {
-      callCount++;
-      // Simulate: after first call adds its event, events table has GOALS_TO_WIN entries
-      // After second call adds its event, events table has GOALS_TO_WIN + 1 entries
-      // Both see >= GOALS_TO_WIN, but both call match.update with FINISHED
-      const goalCount = callCount === 1 ? GOALS_TO_WIN : GOALS_TO_WIN + 1;
-      const events = Array.from({ length: goalCount }, () => ({ type: "GOAL", teamId: TEAM_A_ID }));
-
-      const txMock = {
-        ...prismaMock,
-        matchEvent: {
-          ...prismaMock.matchEvent,
-          create: vi.fn().mockResolvedValue({}),
-          findMany: vi.fn().mockResolvedValue(events),
-        },
-        match: {
-          ...prismaMock.match,
-          update: vi.fn().mockResolvedValue(
-            makeMatch({
-              status: "FINISHED",
-              scoreA: goalCount,
-              scoreB: 0,
-              endReason: "GOALS",
-              winnerTeamId: TEAM_A_ID,
-              endedAt: new Date(),
-            }),
-          ),
-        },
-      };
-      return cb(txMock);
-    });
-
-    const [r1, r2] = await Promise.all([
+    // Second call: match is now FINISHED — should throw
+    prismaMock.match.findUnique.mockResolvedValueOnce(
+      makeMatch({ status: "FINISHED", scoreA: 2, scoreB: 0, endReason: "GOALS", winnerTeamId: TEAM_A_ID, endedAt: new Date() }),
+    );
+    await expect(
       addGoal(USER_ORG, MATCH_ID, { teamId: TEAM_A_ID, scorerId: PLAYER_A1 }),
-      addGoal(USER_ORG, MATCH_ID, { teamId: TEAM_A_ID, scorerId: PLAYER_A2 }),
-    ]);
-
-    // Both complete; score always >= GOALS_TO_WIN because recalculated from events
-    expect(r1.scoreA).toBeGreaterThanOrEqual(GOALS_TO_WIN);
-    expect(r2.scoreA).toBeGreaterThanOrEqual(GOALS_TO_WIN);
-    // Both are finished (in real DB, row lock prevents double-processing; here we verify logic)
-    expect(r1.status).toBe("FINISHED");
-    expect(r2.status).toBe("FINISHED");
-    // Verify the score was recalculated from events (not naively incremented)
-    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
+    ).rejects.toMatchObject({ code: "MATCH_FINISHED", status: 409 });
   });
 });
 
@@ -449,16 +404,29 @@ describe("pauseMatch — R30", () => {
     prismaMock.roomMember.findFirst.mockResolvedValue({ id: "m-1" });
 
     const updatedMatch = makeMatch({ status: "PAUSED", elapsedSeconds: 90 }); // 30 + 60
-    prismaMock.match.update.mockResolvedValue(updatedMatch);
+
+    let capturedData: { status: string; elapsedSeconds: number } | undefined;
+    prismaMock.$transaction.mockImplementation(async (cb: (tx: typeof prismaMock) => Promise<unknown>) => {
+      const txMock = {
+        ...prismaMock,
+        match: {
+          ...prismaMock.match,
+          update: vi.fn().mockImplementation(({ data }: { data: { status: string; elapsedSeconds: number } }) => {
+            capturedData = data;
+            return Promise.resolve(updatedMatch);
+          }),
+        },
+      };
+      return cb(txMock);
+    });
 
     const result = await pauseMatch(USER_ORG, MATCH_ID);
 
     expect(result.status).toBe("PAUSED");
     expect(result.elapsedSeconds).toBeGreaterThanOrEqual(80); // at least 30 + ~60s
-    expect(prismaMock.match.update).toHaveBeenCalledTimes(1);
-    const updateArgs = prismaMock.match.update.mock.calls[0]![0] as { data: { status: string; elapsedSeconds: number } };
-    expect(updateArgs.data.status).toBe("PAUSED");
-    expect(updateArgs.data.elapsedSeconds).toBeGreaterThanOrEqual(80);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(capturedData?.status).toBe("PAUSED");
+    expect(capturedData?.elapsedSeconds).toBeGreaterThanOrEqual(80);
   });
 });
 
@@ -476,15 +444,29 @@ describe("resumeMatch — R30", () => {
     prismaMock.roomMember.findFirst.mockResolvedValue({ id: "m-1" });
 
     const updatedMatch = makeMatch({ status: "LIVE", startedAt: new Date(), elapsedSeconds: 120 });
-    prismaMock.match.update.mockResolvedValue(updatedMatch);
+
+    let capturedData: { status: string; startedAt: Date } | undefined;
+    prismaMock.$transaction.mockImplementation(async (cb: (tx: typeof prismaMock) => Promise<unknown>) => {
+      const txMock = {
+        ...prismaMock,
+        match: {
+          ...prismaMock.match,
+          update: vi.fn().mockImplementation(({ data }: { data: { status: string; startedAt: Date } }) => {
+            capturedData = data;
+            return Promise.resolve(updatedMatch);
+          }),
+        },
+      };
+      return cb(txMock);
+    });
 
     const result = await resumeMatch(USER_ORG, MATCH_ID);
 
     expect(result.status).toBe("LIVE");
-    const updateArgs = prismaMock.match.update.mock.calls[0]![0] as { data: { status: string; startedAt: Date } };
-    expect(updateArgs.data.status).toBe("LIVE");
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(capturedData?.status).toBe("LIVE");
     // New startedAt should be recent (within 1 second of now)
-    expect(Math.abs(updateArgs.data.startedAt.getTime() - Date.now())).toBeLessThan(1000);
+    expect(Math.abs((capturedData?.startedAt?.getTime() ?? 0) - Date.now())).toBeLessThan(1000);
   });
 });
 
@@ -499,7 +481,6 @@ describe("endMatch — R29", () => {
       makeMatch({ status: "LIVE", scoreA: 1, scoreB: 0 }),
     );
     prismaMock.roomMember.findFirst.mockResolvedValue({ id: "m-1" });
-    prismaMock.rotation.create.mockResolvedValue({});
 
     const finishedMatch = makeMatch({
       status: "FINISHED",
@@ -509,20 +490,35 @@ describe("endMatch — R29", () => {
       winnerTeamId: TEAM_A_ID,
       endedAt: new Date(),
     });
-    prismaMock.match.update.mockResolvedValue(finishedMatch);
+
+    let capturedData: { status: string; endReason: string; winnerTeamId: string | null } | undefined;
+    prismaMock.$transaction.mockImplementation(async (cb: (tx: typeof prismaMock) => Promise<unknown>) => {
+      const txMock = {
+        ...prismaMock,
+        match: {
+          ...prismaMock.match,
+          update: vi.fn().mockImplementation(({ data }: { data: { status: string; endReason: string; winnerTeamId: string | null } }) => {
+            capturedData = data;
+            return Promise.resolve(finishedMatch);
+          }),
+        },
+        rotation: {
+          ...prismaMock.rotation,
+          create: vi.fn().mockResolvedValue({}),
+        },
+      };
+      return cb(txMock);
+    });
 
     const result = await endMatch(USER_ORG, MATCH_ID);
 
     expect(result.status).toBe("FINISHED");
     expect(result.endReason).toBe("MANUAL");
     expect(result.winnerTeamId).toBe(TEAM_A_ID);
-
-    const updateArgs = prismaMock.match.update.mock.calls[0]![0] as {
-      data: { status: string; endReason: string; winnerTeamId: string | null };
-    };
-    expect(updateArgs.data.status).toBe("FINISHED");
-    expect(updateArgs.data.endReason).toBe("MANUAL");
-    expect(updateArgs.data.winnerTeamId).toBe(TEAM_A_ID);
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    expect(capturedData?.status).toBe("FINISHED");
+    expect(capturedData?.endReason).toBe("MANUAL");
+    expect(capturedData?.winnerTeamId).toBe(TEAM_A_ID);
   });
 
   it("throws MATCH_FINISHED (409) when match is already finished", async () => {
