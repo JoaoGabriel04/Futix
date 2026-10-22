@@ -28,6 +28,10 @@ export function AjustesClient({ id }: AjustesClientProps) {
   // Seção 4 — Co-organizadores
   const [selectedCoOrgUserId, setSelectedCoOrgUserId] = useState<string>("");
 
+  // Seção 5 — Convite
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   // Loading state por ação
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
@@ -151,6 +155,26 @@ export function AjustesClient({ id }: AjustesClientProps) {
     } finally {
       setLoadingAction(null);
     }
+  }
+
+  async function handleGenerateInvite() {
+    setLoadingAction("invite");
+    try {
+      const result = await apiFetch<{ id: string; token: string; expiresAt: string }>(
+        `/rooms/${id}/invites`,
+        { method: "POST" },
+      );
+      setInviteLink(`${window.location.origin}/convite/${result.token}`);
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  async function handleCopyInvite() {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -338,6 +362,47 @@ export function AjustesClient({ id }: AjustesClientProps) {
             <p className="text-caption-regular text-text-muted">
               Não há membros confirmados disponíveis para adicionar.
             </p>
+          )}
+        </section>
+      )}
+
+      {/* Seção 5 — Convite */}
+      {(isOrganizer || isCoOrg) && (
+        <section className="flex flex-col gap-[var(--space-lg)]">
+          <span className="text-overline text-text-muted">CONVITE</span>
+          {inviteLink ? (
+            <div className="flex flex-col gap-[var(--space-md)]">
+              <p className="text-caption-regular text-text-secondary">
+                Link de uso único válido por 24h:
+              </p>
+              <div className="bg-bg-surface border border-border-default rounded-lg px-[var(--space-lg)] py-[var(--space-md)] flex items-center justify-between gap-[var(--space-md)]">
+                <span className="text-caption-regular text-text-primary truncate flex-1">{inviteLink}</span>
+                <button
+                  type="button"
+                  onClick={handleCopyInvite}
+                  className="text-accent-default text-caption-strong shrink-0"
+                >
+                  {copied ? "Copiado!" : "Copiar"}
+                </button>
+              </div>
+              <Button
+                variant="Secondary"
+                size="Large"
+                onClick={handleGenerateInvite}
+                disabled={loadingAction === "invite"}
+              >
+                Gerar novo link
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="Secondary"
+              size="Large"
+              onClick={handleGenerateInvite}
+              disabled={loadingAction === "invite"}
+            >
+              {loadingAction === "invite" ? "Gerando..." : "Gerar link de convite"}
+            </Button>
           )}
         </section>
       )}
