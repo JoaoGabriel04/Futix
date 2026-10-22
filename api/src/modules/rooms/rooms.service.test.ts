@@ -23,8 +23,12 @@ vi.mock("../../lib/prisma.js", () => ({
   prisma: prismaMock,
 }));
 
+const { socketEmitSpy } = vi.hoisted(() => ({
+  socketEmitSpy: vi.fn(),
+}));
+
 vi.mock("../../socket.js", () => ({
-  getIo: () => ({ to: () => ({ emit: vi.fn() }) }),
+  getIo: () => ({ to: () => ({ emit: socketEmitSpy }) }),
 }));
 
 // Import service AFTER vi.mock declaration so the module receives the mocked prisma.
@@ -517,15 +521,11 @@ describe("finishRoom — R36", () => {
   });
 
   // Test 4: succeeds — room becomes FINISHED, finishedAt set, room:finished emitted
-  it("sets room status to FINISHED and finishedAt when valid", async () => {
-    const emitMock = vi.fn();
-    const ioToMock = vi.fn().mockReturnValue({ emit: emitMock });
-
-    // vi.mock for socket is already applied; we need a spy. We'll check via
-    // room.update args since socket mock returns a stable stub.
+  it("sets room status to FINISHED and finishedAt when valid, and emits room:finished", async () => {
+    socketEmitSpy.mockClear();
     prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "ORGANIZER" });
     prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "DRAWN" });
-    prismaMock.match.findFirst.mockResolvedValue(null); // no active match
+    prismaMock.match.findFirst.mockResolvedValue(null);
     prismaMock.room.update.mockResolvedValue({ ...FAKE_ROOM, status: "FINISHED", finishedAt: new Date() });
 
     await finishRoom("user-1", "room-1");
@@ -539,6 +539,11 @@ describe("finishRoom — R36", () => {
 
     const callData = prismaMock.room.update.mock.calls[0]?.[0] as { data: { finishedAt?: Date } };
     expect(callData.data.finishedAt).toBeInstanceOf(Date);
+
+    expect(socketEmitSpy).toHaveBeenCalledWith(
+      "room:finished",
+      expect.objectContaining({ roomId: "room-1" }),
+    );
   });
 });
 
