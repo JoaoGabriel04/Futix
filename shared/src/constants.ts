@@ -63,3 +63,20 @@ export const WEIGHT_LABEL_PT = {
   GOOD: "Bom",
   STAR: "Craque",
 } as const;
+
+export const MATCH_STATUS = {
+  LIVE: "LIVE",
+  PAUSED: "PAUSED",
+  FINISHED: "FINISHED",
+} as const;
+
+export const MATCH_END_REASON = {
+  GOALS: "GOALS",
+  TIME: "TIME",
+  MANUAL: "MANUAL",
+} as const;
+
+export const MATCH_EVENT_TYPE = {
+  GOAL: "GOAL",
+  OWN_GOAL: "OWN_GOAL",
+} as const;
