@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,6 +12,8 @@ import { Progress } from "../../../../components/ui/Progress";
 import { PlayerRow } from "../../../../components/domain/PlayerRow";
 import { useRoom } from "../../../../hooks/useRoom";
 import type { RoomMemberSummary } from "../../../../hooks/useRoom";
+import { useDraw } from "../../../../hooks/useDraw";
+import { apiFetch } from "../../../../lib/api";
 
 type BadgeStatus = "Confirmado" | "Pendente" | "Espera" | "Recusado" | "Organizador";
 
@@ -56,7 +59,9 @@ function getInitials(name: string): string {
 export default function SalaPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { room, isLoading } = useRoom(id);
+  const { room, isLoading, mutate } = useRoom(id);
+  const { draw, mutate: mutateDraw } = useDraw(id);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -79,6 +84,18 @@ export default function SalaPage() {
     totalGoalkeepers > 0
       ? Math.round((room.confirmedGoalkeepers / totalGoalkeepers) * 100)
       : 0;
+
+  async function handleDraw() {
+    setLoadingAction("draw");
+    try {
+      await apiFetch(`/rooms/${id}/draw`, { method: "POST" });
+      await Promise.all([mutate(), mutateDraw()]);
+    } catch (e: unknown) {
+      alert((e as { message?: string }).message ?? "Erro ao realizar o sorteio.");
+    } finally {
+      setLoadingAction(null);
+    }
+  }
 
   const lineMembers = room.members.filter(
     (m) => m.playRole === "LINE" && m.status === "CONFIRMED",
@@ -114,6 +131,17 @@ export default function SalaPage() {
             Ajustes
           </Button>
         )}
+        {room.myMember?.role === "ORGANIZER" &&
+          (room.status === "OPEN" || room.status === "LOCKED") && (
+            <Button
+              variant="Secondary"
+              size="Small"
+              onClick={handleDraw}
+              disabled={loadingAction === "draw"}
+            >
+              {loadingAction === "draw" ? "Sorteando..." : "Sortear times"}
+            </Button>
+          )}
       </div>
 
       {/* Room info */}
@@ -150,6 +178,36 @@ export default function SalaPage() {
           </div>
         )}
       </div>
+
+      {/* Drawn teams */}
+      {draw && draw.teams.length > 0 && (
+        <section className="flex flex-col gap-[var(--space-lg)]">
+          <span className="text-overline text-text-muted">TIMES SORTEADOS</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[var(--space-lg)]">
+            {draw.teams.map((team) => (
+              <div
+                key={team.id}
+                className="bg-bg-surface border border-border-default rounded-xl p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]"
+              >
+                <span className="text-body-strong text-text-primary">{team.name}</span>
+                <ul className="flex flex-col gap-[var(--space-xs)]">
+                  {team.players.map((p) => (
+                    <li
+                      key={p.userId}
+                      className="text-body-regular text-text-secondary flex items-center gap-[var(--space-xs)]"
+                    >
+                      <span className="text-caption-regular text-text-muted w-[60px]">
+                        {p.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"}
+                      </span>
+                      {p.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Join button — visible when room is open and user is not a member */}
       {room.status === "OPEN" && room.myMember === null && (
