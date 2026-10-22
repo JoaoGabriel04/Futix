@@ -32,6 +32,9 @@ type RoomDetail = {
   ownerId: string;
   confirmedLine: number;
   confirmedGoalkeepers: number;
+  matchMinutes: number;
+  winnerRule: string;
+  maxStarsPerTeam: number;
   myMember: RoomMemberSummary | null;
   members: RoomMemberSummary[];
 };
