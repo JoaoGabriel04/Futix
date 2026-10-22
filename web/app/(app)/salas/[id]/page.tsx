@@ -105,6 +105,15 @@ export default function SalaPage() {
         </button>
         <h1 className="text-heading-h2 text-text-primary flex-1 truncate">{room.title}</h1>
         <Badge status={roomStatusToBadge(room.status)} />
+        {(room.myMember?.role === "ORGANIZER" || room.myMember?.role === "CO_ORGANIZER") && (
+          <Button
+            variant="Secondary"
+            size="Small"
+            onClick={() => router.push(`/salas/${id}/ajustes`)}
+          >
+            Ajustes
+          </Button>
+        )}
       </div>
 
       {/* Room info */}
