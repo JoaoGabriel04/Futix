@@ -10,6 +10,9 @@ import {
   lockRoomHandler,
   unlockRoomHandler,
   cancelRoomHandler,
+  finishRoomHandler,
+  getRoomSessionHandler,
+  getRoomSummaryHandler,
 } from "./rooms.controller.js";
 
 const router: IRouter = Router();
@@ -21,5 +24,8 @@ router.patch("/rooms/:id", requireAuth, requireSameOrigin, requireOrganizerRole,
 router.post("/rooms/:id/lock", requireAuth, requireOrganizerRole, lockRoomHandler);
 router.post("/rooms/:id/unlock", requireAuth, requireOrganizerRole, unlockRoomHandler);
 router.post("/rooms/:id/cancel", requireAuth, cancelRoomHandler);
+router.post("/rooms/:id/finish", requireAuth, requireOrganizerRole, finishRoomHandler);
+router.get("/rooms/:id/session", requireAuth, getRoomSessionHandler);
+router.get("/rooms/:id/summary", requireAuth, getRoomSummaryHandler);
 
 export { router as roomsRouter };

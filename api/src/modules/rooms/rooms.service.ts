@@ -1,7 +1,9 @@
 import type { Room, RoomMember } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import type { CreateRoomInput, UpdateRoomInput, UpdateRoomRulesInput } from "@fut/shared";
+import type { CreateRoomInput, UpdateRoomInput, UpdateRoomRulesInput, Summary } from "@fut/shared";
+import { WEIGHT_VALUE } from "@fut/shared";
 import { getIo } from "../../socket.js";
+import type { MatchForMember } from "../matches/matches.service.js";
 
 // ── types ──────────────────────────────────────────────────────────────────────
 
@@ -303,4 +305,372 @@ export async function countVacancies(
   const confirmedGoalkeepers = members.filter((m) => m.playRole === "GOALKEEPER").length;
 
   return { confirmedLine, confirmedGoalkeepers };
+}
+
+// ── R36: finishRoom ────────────────────────────────────────────────────────────
+
+export async function finishRoom(userId: string, roomId: string): Promise<void> {
+  // Caller must be ORGANIZER or CO_ORGANIZER
+  const member = await prisma.roomMember.findFirst({
+    where: { roomId, userId, role: { in: ["ORGANIZER", "CO_ORGANIZER"] }, status: "CONFIRMED" },
+    select: { id: true },
+  });
+  if (!member) throw makeError("Apenas organizadores podem finalizar a sala.", 403, "NOT_ORGANIZER");
+
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { status: true },
+  });
+  if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+
+  if (room.status === "OPEN" || room.status === "LOCKED") {
+    throw makeError("A sala ainda não foi iniciada.", 400, "ROOM_NOT_STARTED");
+  }
+  if (room.status === "CANCELED" || room.status === "FINISHED") {
+    throw makeError("A sala já foi encerrada.", 409, "ROOM_ALREADY_ENDED");
+  }
+
+  // No match must be LIVE or PAUSED
+  const activeMatch = await prisma.match.findFirst({
+    where: { roomId, status: { in: ["LIVE", "PAUSED"] } },
+    select: { id: true },
+  });
+  if (activeMatch) throw makeError("Há uma partida em andamento.", 409, "MATCH_IN_PROGRESS");
+
+  const now = new Date();
+
+  await prisma.room.update({
+    where: { id: roomId },
+    data: { status: "FINISHED", finishedAt: now },
+  });
+
+  try {
+    getIo().to(`room:${roomId}`).emit("room:finished", { roomId, finishedAt: now.toISOString() });
+  } catch {}
+}
+
+// ── getRoomSession ─────────────────────────────────────────────────────────────
+
+type SessionTeam = {
+  id: string;
+  name: string;
+  queuePosition: number | null;
+  playerIds: string[];
+  consecutiveWins: number;
+  weightTotal?: number;
+};
+
+type RoomSessionResult = {
+  status: string;
+  teams: SessionTeam[];
+  currentMatch: MatchForMember | null;
+  lastRotation: {
+    kind: string;
+    swaps: unknown;
+    courtAfter: string[];
+    queueAfter: string[];
+  } | null;
+};
+
+export async function getRoomSession(userId: string, roomId: string): Promise<RoomSessionResult> {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { status: true, ownerId: true },
+  });
+  if (!room) throw makeError("Sala não encontrada.", 404, "NOT_FOUND");
+
+  // Caller must be confirmed member or org/co-org
+  const member = await prisma.roomMember.findFirst({
+    where: { roomId, userId, status: "CONFIRMED" },
+    select: { role: true },
+  });
+  if (!member) throw makeError("Sala não encontrada.", 404, "NOT_FOUND");
+
+  const isOrgRole = member.role === "ORGANIZER" || member.role === "CO_ORGANIZER";
+
+  // Load latest draw's teams
+  const draw = await prisma.draw.findFirst({
+    where: { roomId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      teams: {
+        orderBy: { queuePosition: "asc" },
+        select: {
+          id: true,
+          name: true,
+          queuePosition: true,
+          playerIds: true,
+          consecutiveWins: true,
+        },
+      },
+    },
+  });
+
+  let teams: SessionTeam[] = [];
+
+  if (draw) {
+    // Filter out the "Sem time" sentinel (queuePosition === -1)
+    const drawTeams = draw.teams.filter((t) => t.queuePosition !== -1);
+
+    if (isOrgRole) {
+      // Load weights for weight totals
+      const allPlayerIds = drawTeams.flatMap((t) => t.playerIds);
+      const storedWeights = await prisma.playerWeight.findMany({
+        where: { ownerId: room.ownerId, playerId: { in: allPlayerIds } },
+        select: { playerId: true, level: true },
+      });
+      const weightMap = new Map(storedWeights.map((w) => [w.playerId, w.level as "REGULAR" | "GOOD" | "STAR"]));
+
+      teams = drawTeams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        queuePosition: t.queuePosition,
+        playerIds: t.playerIds,
+        consecutiveWins: t.consecutiveWins,
+        weightTotal: t.playerIds.reduce((sum, pid) => {
+          const level = weightMap.get(pid) ?? "GOOD";
+          return sum + WEIGHT_VALUE[level];
+        }, 0),
+      }));
+    } else {
+      teams = drawTeams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        queuePosition: t.queuePosition,
+        playerIds: t.playerIds,
+        consecutiveWins: t.consecutiveWins,
+      }));
+    }
+  }
+
+  // Load current LIVE/PAUSED match
+  const activeMatchRow = await prisma.match.findFirst({
+    where: { roomId, status: { in: ["LIVE", "PAUSED"] } },
+    select: {
+      id: true,
+      roomId: true,
+      number: true,
+      teamAId: true,
+      teamBId: true,
+      teamAPlayerIds: true,
+      teamBPlayerIds: true,
+      limitSeconds: true,
+      status: true,
+      startedAt: true,
+      elapsedSeconds: true,
+      scoreA: true,
+      scoreB: true,
+      winnerTeamId: true,
+      endReason: true,
+      endedAt: true,
+    },
+  });
+
+  let currentMatch: MatchForMember | null = null;
+  if (activeMatchRow) {
+    currentMatch = {
+      id: activeMatchRow.id,
+      roomId: activeMatchRow.roomId,
+      number: activeMatchRow.number,
+      teamAId: activeMatchRow.teamAId,
+      teamBId: activeMatchRow.teamBId,
+      teamAPlayerIds: activeMatchRow.teamAPlayerIds,
+      teamBPlayerIds: activeMatchRow.teamBPlayerIds,
+      limitSeconds: activeMatchRow.limitSeconds,
+      status: activeMatchRow.status as "LIVE" | "PAUSED" | "FINISHED",
+      startedAt: activeMatchRow.startedAt.toISOString(),
+      elapsedSeconds: activeMatchRow.elapsedSeconds,
+      scoreA: activeMatchRow.scoreA,
+      scoreB: activeMatchRow.scoreB,
+      winnerTeamId: activeMatchRow.winnerTeamId,
+      endReason: activeMatchRow.endReason,
+      endedAt: activeMatchRow.endedAt ? activeMatchRow.endedAt.toISOString() : null,
+    };
+  }
+
+  // Load the most recent Rotation (from the most recent FINISHED match with a Rotation)
+  const lastRotationRow = await prisma.rotation.findFirst({
+    where: {
+      match: { roomId, status: "FINISHED" },
+    },
+    orderBy: { match: { number: "desc" } },
+    select: {
+      kind: true,
+      swaps: true,
+      courtAfter: true,
+      queueAfter: true,
+    },
+  });
+
+  const lastRotation = lastRotationRow
+    ? {
+        kind: lastRotationRow.kind,
+        swaps: lastRotationRow.swaps,
+        courtAfter: lastRotationRow.courtAfter as string[],
+        queueAfter: lastRotationRow.queueAfter as string[],
+      }
+    : null;
+
+  return {
+    status: room.status,
+    teams,
+    currentMatch,
+    lastRotation,
+  };
+}
+
+// ── R37: getRoomSummary ────────────────────────────────────────────────────────
+
+export async function getRoomSummary(userId: string, roomId: string): Promise<Summary> {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { status: true },
+  });
+
+  // Room must be FINISHED — use 404 as spec says ROOM_NOT_FINISHED
+  if (!room || room.status !== "FINISHED") {
+    throw makeError("Sala não encontrada ou não finalizada.", 404, "ROOM_NOT_FINISHED");
+  }
+
+  // Caller must be confirmed member
+  const member = await prisma.roomMember.findFirst({
+    where: { roomId, userId, status: "CONFIRMED" },
+    select: { id: true },
+  });
+  if (!member) throw makeError("Sala não encontrada.", 404, "NOT_FOUND");
+
+  // Load all matches for the room ordered by number
+  const matches = await prisma.match.findMany({
+    where: { roomId },
+    orderBy: { number: "asc" },
+    select: {
+      id: true,
+      number: true,
+      teamAId: true,
+      teamBId: true,
+      teamAPlayerIds: true,
+      teamBPlayerIds: true,
+      scoreA: true,
+      scoreB: true,
+      elapsedSeconds: true,
+      status: true,
+      endReason: true,
+      events: {
+        where: { undoneAt: null },
+        select: {
+          type: true,
+          scorerId: true,
+          assistId: true,
+        },
+      },
+    },
+  });
+
+  // Load latest draw teams for team name lookup
+  const draw = await prisma.draw.findFirst({
+    where: { roomId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      teams: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  const teamNameMap = new Map<string, string>();
+  if (draw) {
+    for (const t of draw.teams) {
+      teamNameMap.set(t.id, t.name);
+    }
+  }
+
+  // Gather all userId references for name resolution
+  const scorerIds = new Set<string>();
+  const assistIds = new Set<string>();
+  const playerIds = new Set<string>();
+
+  for (const match of matches) {
+    for (const pid of match.teamAPlayerIds) playerIds.add(pid);
+    for (const pid of match.teamBPlayerIds) playerIds.add(pid);
+    for (const ev of match.events) {
+      if (ev.type === "GOAL" && ev.scorerId) scorerIds.add(ev.scorerId);
+      if (ev.type === "GOAL" && ev.assistId) assistIds.add(ev.assistId);
+    }
+  }
+
+  // Collect all user ids for name resolution
+  const allUserIds = new Set<string>([...scorerIds, ...assistIds, ...playerIds]);
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: Array.from(allUserIds) } },
+    select: { id: true, name: true },
+  });
+  const userNameMap = new Map(users.map((u) => [u.id, u.name]));
+
+  // Aggregate stats
+  let totalGoals = 0;
+  let totalPlaySeconds = 0;
+
+  const scorersMap = new Map<string, number>();
+  const assistsMap = new Map<string, number>();
+  const matchesPlayedMap = new Map<string, number>();
+
+  const matchList: Summary["matchList"] = [];
+
+  for (const match of matches) {
+    // totalGoals: count all non-undone GOAL + OWN_GOAL events
+    totalGoals += match.events.length;
+
+    // totalPlaySeconds: sum elapsedSeconds for FINISHED matches only
+    if (match.status === "FINISHED") {
+      totalPlaySeconds += match.elapsedSeconds;
+    }
+
+    // Scorers: GOAL events only (not OWN_GOAL), attributed to scorerId
+    for (const ev of match.events) {
+      if (ev.type === "GOAL" && ev.scorerId) {
+        scorersMap.set(ev.scorerId, (scorersMap.get(ev.scorerId) ?? 0) + 1);
+      }
+      if (ev.type === "GOAL" && ev.assistId) {
+        assistsMap.set(ev.assistId, (assistsMap.get(ev.assistId) ?? 0) + 1);
+      }
+    }
+
+    // matchesPlayed: each unique player in teamAPlayerIds ∪ teamBPlayerIds counts as 1
+    const allMatchPlayers = new Set([...match.teamAPlayerIds, ...match.teamBPlayerIds]);
+    for (const pid of allMatchPlayers) {
+      matchesPlayedMap.set(pid, (matchesPlayedMap.get(pid) ?? 0) + 1);
+    }
+
+    matchList.push({
+      number: match.number,
+      scoreA: match.scoreA,
+      scoreB: match.scoreB,
+      teamAName: teamNameMap.get(match.teamAId) ?? match.teamAId,
+      teamBName: teamNameMap.get(match.teamBId) ?? match.teamBId,
+      endReason: match.endReason ?? "",
+    });
+  }
+
+  const scorers = Array.from(scorersMap.entries())
+    .map(([userId, goals]) => ({ userId, name: userNameMap.get(userId) ?? userId, goals }))
+    .sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const assists = Array.from(assistsMap.entries())
+    .map(([userId, assistCount]) => ({ userId, name: userNameMap.get(userId) ?? userId, assists: assistCount }))
+    .sort((a, b) => b.assists - a.assists || a.name.localeCompare(b.name));
+
+  const matchesPlayed = Array.from(matchesPlayedMap.entries())
+    .map(([userId, count]) => ({ userId, name: userNameMap.get(userId) ?? userId, matches: count }))
+    .sort((a, b) => b.matches - a.matches || a.name.localeCompare(b.name));
+
+  return {
+    totalMatches: matches.length,
+    totalGoals,
+    totalPlaySeconds,
+    scorers,
+    assists,
+    matchesPlayed,
+    matchList,
+  };
 }

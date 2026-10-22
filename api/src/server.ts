@@ -3,6 +3,8 @@ import pino from "pino";
 import { createApp } from "./app.js";
 import { env } from "./env.js";
 import { createSocketServer, setIo } from "./socket.js";
+import { prisma } from "./lib/prisma.js";
+import { _expireMatch, scheduleMatchTimer } from "./modules/matches/matches.service.js";
 
 const logger = pino(
   env.NODE_ENV === "development" ? { transport: { target: "pino-pretty" } } : {},
@@ -12,6 +14,25 @@ const app = createApp();
 const httpServer = createServer(app);
 const io = createSocketServer(httpServer);
 setIo(io);
+
+async function recoverLiveMatches(): Promise<void> {
+  const liveMatches = await prisma.match.findMany({
+    where: { status: "LIVE" },
+    select: { id: true, startedAt: true, elapsedSeconds: true, limitSeconds: true },
+  });
+
+  for (const match of liveMatches) {
+    const now = Date.now();
+    const elapsed = match.elapsedSeconds + Math.floor((now - match.startedAt.getTime()) / 1000);
+    if (elapsed >= match.limitSeconds) {
+      // Already expired — expire immediately
+      void _expireMatch(match.id);
+    } else {
+      const remainingMs = (match.limitSeconds - elapsed) * 1000;
+      scheduleMatchTimer(match.id, remainingMs);
+    }
+  }
+}
 
 function startListening(retriesLeft = 3) {
   httpServer.removeAllListeners("error");
@@ -35,7 +56,7 @@ function startListening(retriesLeft = 3) {
   httpServer.listen(env.PORT);
 }
 
-startListening();
+void recoverLiveMatches().then(() => startListening());
 
 process.on("SIGTERM", () => {
   logger.info("SIGTERM received — shutting down");

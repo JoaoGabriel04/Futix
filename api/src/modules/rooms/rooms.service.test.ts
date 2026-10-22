@@ -9,6 +9,11 @@ const { prismaMock } = vi.hoisted(() => {
   const prismaMock = {
     room: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     roomMember: { findMany: vi.fn(), findFirst: vi.fn() },
+    match: { findFirst: vi.fn(), findMany: vi.fn() },
+    draw: { findFirst: vi.fn() },
+    playerWeight: { findMany: vi.fn() },
+    rotation: { findFirst: vi.fn() },
+    user: { findMany: vi.fn() },
   };
 
   return { prismaMock };
@@ -31,6 +36,8 @@ import {
   lockRoom,
   unlockRoom,
   cancelRoom,
+  finishRoom,
+  getRoomSummary,
 } from "./rooms.service.js";
 
 // ── shared fixtures ────────────────────────────────────────────────────────────
@@ -458,5 +465,224 @@ describe("cancelRoom — Regra 15", () => {
       expect.objectContaining({ data: { status: "CANCELED" } }),
     );
     expect(result).toMatchObject({ status: "CANCELED" });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// R36 — finishRoom
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("finishRoom — R36", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Test 1: NOT_ORGANIZER (403) when caller is not org/co-org
+  it("throws NOT_ORGANIZER (403) when caller is not an organizer", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue(null);
+
+    await expect(finishRoom("user-plain", "room-1")).rejects.toMatchObject({
+      code: "NOT_ORGANIZER",
+      status: 403,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  // Test 2: ROOM_NOT_STARTED (400) when room is OPEN
+  it("throws ROOM_NOT_STARTED (400) when room is OPEN", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "ORGANIZER" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "OPEN" });
+
+    await expect(finishRoom("user-1", "room-1")).rejects.toMatchObject({
+      code: "ROOM_NOT_STARTED",
+      status: 400,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  // Test 3: MATCH_IN_PROGRESS (409) when a match is LIVE
+  it("throws MATCH_IN_PROGRESS (409) when a LIVE match exists", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "ORGANIZER" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "LIVE" });
+    prismaMock.match.findFirst.mockResolvedValue({ id: "match-1" });
+
+    await expect(finishRoom("user-1", "room-1")).rejects.toMatchObject({
+      code: "MATCH_IN_PROGRESS",
+      status: 409,
+    });
+
+    expect(prismaMock.room.update).not.toHaveBeenCalled();
+  });
+
+  // Test 4: succeeds — room becomes FINISHED, finishedAt set, room:finished emitted
+  it("sets room status to FINISHED and finishedAt when valid", async () => {
+    const emitMock = vi.fn();
+    const ioToMock = vi.fn().mockReturnValue({ emit: emitMock });
+
+    // vi.mock for socket is already applied; we need a spy. We'll check via
+    // room.update args since socket mock returns a stable stub.
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "ORGANIZER" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "DRAWN" });
+    prismaMock.match.findFirst.mockResolvedValue(null); // no active match
+    prismaMock.room.update.mockResolvedValue({ ...FAKE_ROOM, status: "FINISHED", finishedAt: new Date() });
+
+    await finishRoom("user-1", "room-1");
+
+    expect(prismaMock.room.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "room-1" },
+        data: expect.objectContaining({ status: "FINISHED" }),
+      }),
+    );
+
+    const callData = prismaMock.room.update.mock.calls[0]?.[0] as { data: { finishedAt?: Date } };
+    expect(callData.data.finishedAt).toBeInstanceOf(Date);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// R37 — getRoomSummary
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("getRoomSummary — R37", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Test 5: ROOM_NOT_FINISHED (404) when room is not FINISHED
+  it("throws ROOM_NOT_FINISHED (404) when room is not FINISHED", async () => {
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "LIVE" });
+
+    await expect(getRoomSummary("user-1", "room-1")).rejects.toMatchObject({
+      code: "ROOM_NOT_FINISHED",
+      status: 404,
+    });
+  });
+
+  // Test 6: NOT_FOUND (404) when caller is not a confirmed member
+  it("throws NOT_FOUND (404) when caller is not a confirmed member", async () => {
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "FINISHED" });
+    prismaMock.roomMember.findFirst.mockResolvedValue(null);
+
+    await expect(getRoomSummary("user-stranger", "room-1")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      status: 404,
+    });
+  });
+
+  // Test 7: returns correct summary
+  it("returns correct summary: totalMatches, totalGoals, totalPlaySeconds, scorers (goals only, not own-goals), assists, matchesPlayed, matchList", async () => {
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "FINISHED" });
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1", role: "PLAYER" });
+
+    const TEAM_A = "team-a";
+    const TEAM_B = "team-b";
+    const PLAYER_1 = "player-1";
+    const PLAYER_2 = "player-2";
+    const PLAYER_3 = "player-3";
+
+    // Two finished matches
+    prismaMock.match.findMany.mockResolvedValue([
+      {
+        id: "match-1",
+        number: 1,
+        teamAId: TEAM_A,
+        teamBId: TEAM_B,
+        teamAPlayerIds: [PLAYER_1, PLAYER_2],
+        teamBPlayerIds: [PLAYER_3],
+        scoreA: 2,
+        scoreB: 1,
+        elapsedSeconds: 300,
+        status: "FINISHED",
+        endReason: "GOALS",
+        events: [
+          // Regular goal by PLAYER_1, assisted by PLAYER_2
+          { type: "GOAL", scorerId: PLAYER_1, assistId: PLAYER_2 },
+          // Regular goal by PLAYER_1, no assist
+          { type: "GOAL", scorerId: PLAYER_1, assistId: null },
+          // Own goal: counts toward totalGoals but NOT toward scorers
+          { type: "OWN_GOAL", scorerId: PLAYER_3, assistId: null },
+        ],
+      },
+      {
+        id: "match-2",
+        number: 2,
+        teamAId: TEAM_A,
+        teamBId: TEAM_B,
+        teamAPlayerIds: [PLAYER_1],
+        teamBPlayerIds: [PLAYER_2, PLAYER_3],
+        scoreA: 0,
+        scoreB: 2,
+        elapsedSeconds: 600,
+        status: "FINISHED",
+        endReason: "TIME",
+        events: [
+          // Goal by PLAYER_2
+          { type: "GOAL", scorerId: PLAYER_2, assistId: null },
+          // Goal by PLAYER_3, assisted by PLAYER_2
+          { type: "GOAL", scorerId: PLAYER_3, assistId: PLAYER_2 },
+        ],
+      },
+    ]);
+
+    // Latest draw for team names
+    prismaMock.draw.findFirst.mockResolvedValue({
+      teams: [
+        { id: TEAM_A, name: "Time A" },
+        { id: TEAM_B, name: "Time B" },
+      ],
+    });
+
+    // User names
+    prismaMock.user.findMany.mockResolvedValue([
+      { id: PLAYER_1, name: "Alice" },
+      { id: PLAYER_2, name: "Bob" },
+      { id: PLAYER_3, name: "Carlos" },
+    ]);
+
+    const result = await getRoomSummary("user-1", "room-1");
+
+    // totalMatches
+    expect(result.totalMatches).toBe(2);
+
+    // totalGoals: all non-undone events (GOAL + OWN_GOAL) = 3 + 2 = 5
+    expect(result.totalGoals).toBe(5);
+
+    // totalPlaySeconds: sum of elapsedSeconds from FINISHED matches = 300 + 600 = 900
+    expect(result.totalPlaySeconds).toBe(900);
+
+    // scorers: GOAL events only (not OWN_GOAL)
+    // PLAYER_1: 2 goals (match-1), PLAYER_2: 1 goal (match-2), PLAYER_3: 1 goal (match-2)
+    expect(result.scorers).toEqual([
+      { userId: PLAYER_1, name: "Alice", goals: 2 },
+      { userId: PLAYER_2, name: "Bob", goals: 1 },
+      { userId: PLAYER_3, name: "Carlos", goals: 1 },
+    ]);
+
+    // OWN_GOAL scorer (PLAYER_3 in match-1) must NOT appear in scorers list from that event
+    const scorerIds = result.scorers.map((s) => s.userId);
+    // PLAYER_3 appears in scorers because of match-2 GOAL, not match-1 OWN_GOAL
+    // The OWN_GOAL in match-1 should not add to PLAYER_3's goal count beyond the GOAL in match-2
+    expect(result.scorers.find((s) => s.userId === PLAYER_3)?.goals).toBe(1);
+
+    // assists: PLAYER_2 assisted 2 times (match-1 and match-2)
+    expect(result.assists).toEqual([
+      { userId: PLAYER_2, name: "Bob", assists: 2 },
+    ]);
+
+    // matchesPlayed: based on snapshots
+    // PLAYER_1: match-1 (teamA) + match-2 (teamA) = 2
+    // PLAYER_2: match-1 (teamA) + match-2 (teamB) = 2
+    // PLAYER_3: match-1 (teamB) + match-2 (teamB) = 2
+    expect(result.matchesPlayed).toHaveLength(3);
+    expect(result.matchesPlayed.every((p) => p.matches === 2)).toBe(true);
+
+    // matchList
+    expect(result.matchList).toEqual([
+      { number: 1, scoreA: 2, scoreB: 1, teamAName: "Time A", teamBName: "Time B", endReason: "GOALS" },
+      { number: 2, scoreA: 0, scoreB: 2, teamAName: "Time A", teamBName: "Time B", endReason: "TIME" },
+    ]);
   });
 });
