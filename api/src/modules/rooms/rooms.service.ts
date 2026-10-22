@@ -275,6 +275,9 @@ export async function cancelRoom(userId: string, roomId: string): Promise<Room> 
 
   const room = await prisma.room.findUnique({ where: { id: roomId } });
   if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  if (room.status === "LIVE") {
+    throw makeError("Não é possível cancelar uma sala em andamento.", 400, "ROOM_LIVE");
+  }
   if (room.status === "CANCELED" || room.status === "FINISHED") {
     throw makeError("Não é possível cancelar uma sala já finalizada ou cancelada.", 400, "INVALID_STATUS");
   }
