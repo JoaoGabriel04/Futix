@@ -24,6 +24,8 @@ const { prismaMock } = vi.hoisted(() => {
       update: vi.fn(),
     },
     rotation: { create: vi.fn() },
+    playerWeight: { findMany: vi.fn() },
+    drawTeam: { update: vi.fn() },
     $transaction: vi.fn(),
   };
   return { prismaMock };
@@ -308,6 +310,35 @@ describe("addGoal — R24/R25", () => {
           ...prismaMock.match,
           update: vi.fn().mockResolvedValue(finishedMatch),
         },
+        room: {
+          ...prismaMock.room,
+          findUnique: vi.fn().mockResolvedValue({
+            winnerRule: "MAX_2_WINS",
+            maxStarsPerTeam: 3,
+            ownerId: "owner-1",
+          }),
+        },
+        draw: {
+          ...prismaMock.draw,
+          findFirst: vi.fn().mockResolvedValue({
+            teams: [
+              { id: TEAM_A_ID, playerIds: [PLAYER_A1, PLAYER_A2], queuePosition: null, consecutiveWins: 0 },
+              { id: TEAM_B_ID, playerIds: [PLAYER_B1, PLAYER_B2], queuePosition: null, consecutiveWins: 0 },
+            ],
+          }),
+        },
+        playerWeight: {
+          ...prismaMock.playerWeight,
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        rotation: {
+          ...prismaMock.rotation,
+          create: vi.fn().mockResolvedValue({}),
+        },
+        drawTeam: {
+          ...prismaMock.drawTeam,
+          update: vi.fn().mockResolvedValue({}),
+        },
       };
       return cb(txMock);
     });
@@ -505,6 +536,31 @@ describe("endMatch — R29", () => {
         rotation: {
           ...prismaMock.rotation,
           create: vi.fn().mockResolvedValue({}),
+        },
+        room: {
+          ...prismaMock.room,
+          findUnique: vi.fn().mockResolvedValue({
+            winnerRule: "MAX_2_WINS",
+            maxStarsPerTeam: 3,
+            ownerId: "owner-1",
+          }),
+        },
+        draw: {
+          ...prismaMock.draw,
+          findFirst: vi.fn().mockResolvedValue({
+            teams: [
+              { id: TEAM_A_ID, playerIds: [PLAYER_A1, PLAYER_A2], queuePosition: null, consecutiveWins: 0 },
+              { id: TEAM_B_ID, playerIds: [PLAYER_B1, PLAYER_B2], queuePosition: null, consecutiveWins: 0 },
+            ],
+          }),
+        },
+        playerWeight: {
+          ...prismaMock.playerWeight,
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        drawTeam: {
+          ...prismaMock.drawTeam,
+          update: vi.fn().mockResolvedValue({}),
         },
       };
       return cb(txMock);

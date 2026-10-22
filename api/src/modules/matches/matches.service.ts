@@ -2,7 +2,8 @@ import { prisma } from "../../lib/prisma.js";
 import { getIo } from "../../socket.js";
 import { GOALS_TO_WIN } from "@fut/shared";
 import type { CreateGoalInput } from "@fut/shared";
-import { computeRotation } from "./rotation.service.js";
+import { computeRotation, applyRotation } from "./rotation.service.js";
+import type { DrawTeamSnapshot, WeightMap, RotationResult, PrismaTx } from "./rotation.service.js";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -180,20 +181,73 @@ async function saveRotation(
   matchId: string,
   roomId: string,
   winnerTeamId: string | null,
-  endReason: string,
   tx?: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
-): Promise<void> {
+): Promise<RotationResult | null> {
   const client = tx ?? prisma;
-  const result = computeRotation({ roomId, matchId, winnerTeamId, endReason });
+
+  // Load room settings
+  const room = await client.room.findUnique({
+    where: { id: roomId },
+    select: { winnerRule: true, maxStarsPerTeam: true, ownerId: true },
+  });
+  if (!room) return null;
+
+  // Load latest draw's teams
+  const draw = await client.draw.findFirst({
+    where: { roomId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      teams: {
+        select: {
+          id: true,
+          playerIds: true,
+          queuePosition: true,
+          consecutiveWins: true,
+        },
+      },
+    },
+  });
+  if (!draw || draw.teams.length === 0) return null;
+
+  const teams: DrawTeamSnapshot[] = draw.teams.map((t) => ({
+    id: t.id,
+    playerIds: t.playerIds,
+    queuePosition: t.queuePosition,
+    consecutiveWins: t.consecutiveWins,
+  }));
+
+  // Load weights (room owner's assessments)
+  const allPlayerIds = teams.flatMap((t) => t.playerIds);
+  const storedWeights = await client.playerWeight.findMany({
+    where: { ownerId: room.ownerId, playerId: { in: allPlayerIds } },
+    select: { playerId: true, level: true },
+  });
+  const weights: WeightMap = Object.fromEntries(
+    storedWeights.map((w) => [w.playerId, w.level as "REGULAR" | "GOOD" | "STAR"]),
+  );
+
+  const result = computeRotation({
+    winnerTeamId,
+    winnerRule: room.winnerRule as "ALWAYS" | "MAX_2_WINS",
+    maxStarsPerTeam: room.maxStarsPerTeam,
+    teams,
+    weights,
+  });
+
   await client.rotation.create({
     data: {
       matchId,
       kind: result.kind,
-      swaps: result.swaps,
+      swaps: result.swaps as unknown as import("@prisma/client").Prisma.InputJsonValue,
       courtAfter: result.courtAfter,
       queueAfter: result.queueAfter,
     },
   });
+
+  // Apply rotation to DrawTeam rows
+  await applyRotation(teams, result, client as unknown as PrismaTx);
+
+  return result;
 }
 
 // ── service functions ──────────────────────────────────────────────────────────
@@ -434,6 +488,8 @@ export async function addGoal(
   // We use a transaction and recompute score from events inside
   const eventType = input.ownGoal === true ? "OWN_GOAL" : "GOAL";
 
+  let rotationResult: ReturnType<typeof computeRotation> | null = null;
+
   const updated = await prisma.$transaction(async (tx) => {
     // Create the event
     await tx.matchEvent.create({
@@ -479,7 +535,7 @@ export async function addGoal(
         },
       });
 
-      await saveRotation(matchId, match.roomId, winnerTeamId, "GOALS", tx);
+      rotationResult = await saveRotation(matchId, match.roomId, winnerTeamId, tx);
 
       return finishedMatch;
     }
@@ -498,12 +554,7 @@ export async function addGoal(
     try {
       getIo().to(`room:${match.roomId}`).emit("match:ended", {
         ...matchState(result),
-        rotation: computeRotation({
-          roomId: match.roomId,
-          matchId,
-          winnerTeamId: result.winnerTeamId,
-          endReason: "GOALS",
-        }),
+        rotation: rotationResult,
       });
     } catch { /* socket not initialized in tests */ }
   } else {
@@ -600,6 +651,8 @@ export async function endMatch(userId: string, matchId: string): Promise<MatchFo
       : null;
 
   const endedAt = new Date();
+  let endMatchRotation: RotationResult | null = null;
+
   const updated = await prisma.$transaction(async (tx) => {
     const finishedMatch = await tx.match.update({
       where: { id: matchId },
@@ -611,7 +664,7 @@ export async function endMatch(userId: string, matchId: string): Promise<MatchFo
       },
     });
 
-    await saveRotation(matchId, match.roomId, winnerTeamId, "MANUAL", tx);
+    endMatchRotation = await saveRotation(matchId, match.roomId, winnerTeamId, tx);
 
     return finishedMatch;
   });
@@ -621,12 +674,7 @@ export async function endMatch(userId: string, matchId: string): Promise<MatchFo
   try {
     getIo().to(`room:${match.roomId}`).emit("match:ended", {
       ...matchState(result),
-      rotation: computeRotation({
-        roomId: match.roomId,
-        matchId,
-        winnerTeamId,
-        endReason: "MANUAL",
-      }),
+      rotation: endMatchRotation,
     });
   } catch { /* socket not initialized in tests */ }
 
@@ -714,6 +762,8 @@ export async function _expireMatch(matchId: string): Promise<void> {
   const winnerTeamId = scoreA > scoreB ? match.teamAId : scoreB > scoreA ? match.teamBId : null;
 
   const endedAt = new Date();
+  let expireRotation: RotationResult | null = null;
+
   const updated = await prisma.$transaction(async (tx) => {
     const finishedMatch = await tx.match.update({
       where: { id: matchId },
@@ -726,7 +776,7 @@ export async function _expireMatch(matchId: string): Promise<void> {
       },
     });
 
-    await saveRotation(matchId, match.roomId, winnerTeamId, "TIME", tx);
+    expireRotation = await saveRotation(matchId, match.roomId, winnerTeamId, tx);
 
     return finishedMatch;
   });
@@ -736,12 +786,7 @@ export async function _expireMatch(matchId: string): Promise<void> {
   try {
     getIo().to(`room:${match.roomId}`).emit("match:ended", {
       ...matchState(result),
-      rotation: computeRotation({
-        roomId: match.roomId,
-        matchId,
-        winnerTeamId,
-        endReason: "TIME",
-      }),
+      rotation: expireRotation,
     });
   } catch { /* socket not initialized */ }
 }
