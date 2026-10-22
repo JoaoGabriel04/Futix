@@ -242,14 +242,16 @@ export function AjustesClient({ id }: AjustesClientProps) {
       <section className="flex flex-col gap-[var(--space-lg)]">
         <span className="text-overline text-text-muted">STATUS DA SALA</span>
         <div className="flex flex-col gap-[var(--space-md)]">
-          <Button
-            variant="Danger"
-            size="Large"
-            onClick={handleCancel}
-            disabled={loadingAction === "cancel"}
-          >
-            {loadingAction === "cancel" ? "Cancelando..." : "Cancelar sala"}
-          </Button>
+          {room.status !== "LIVE" && room.status !== "FINISHED" && room.status !== "CANCELED" && (
+            <Button
+              variant="Danger"
+              size="Large"
+              onClick={handleCancel}
+              disabled={loadingAction === "cancel"}
+            >
+              {loadingAction === "cancel" ? "Cancelando..." : "Cancelar sala"}
+            </Button>
+          )}
         </div>
       </section>
 

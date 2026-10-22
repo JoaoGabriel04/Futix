@@ -1,5 +1,3 @@
-"use client";
-
 type WeightLevel = "REGULAR" | "GOOD" | "STAR";
 
 interface WeightChipProps {

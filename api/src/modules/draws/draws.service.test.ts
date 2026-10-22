@@ -235,6 +235,26 @@ describe("startRoom — R17 (mocked DB)", () => {
     });
   });
 
+  it("throws ROOM_NOT_STARTED (400) when room is CANCELED", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "CANCELED" });
+
+    await expect(startRoom("user-org", "room-1")).rejects.toMatchObject({
+      code: "ROOM_NOT_STARTED",
+      status: 400,
+    });
+  });
+
+  it("throws ROOM_NOT_STARTED (400) when room is FINISHED", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "FINISHED" });
+
+    await expect(startRoom("user-org", "room-1")).rejects.toMatchObject({
+      code: "ROOM_NOT_STARTED",
+      status: 400,
+    });
+  });
+
   it("success: creates Draw, returns DrawResultForOrg with teams and queuePositions", async () => {
     prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
     prismaMock.room.findUnique.mockResolvedValue(FAKE_ROOM);
@@ -305,6 +325,19 @@ describe("drawTeams — R19 (mocked DB)", () => {
     await expect(drawTeams("user-org", "room-1")).rejects.toMatchObject({
       code: "DRAW_LOCKED",
       status: 423,
+    });
+  });
+
+  it("throws NOT_ENOUGH_PLAYERS (400) on re-draw with fewer than 2*teamSize players", async () => {
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
+    prismaMock.room.findUnique.mockResolvedValue({ ...FAKE_ROOM, status: "DRAWN" });
+    // Only 6 players, teamSize=4, need 8
+    prismaMock.roomMember.findMany.mockResolvedValue(makeLineMembers(6));
+    prismaMock.playerWeight.findMany.mockResolvedValue([]);
+
+    await expect(drawTeams("user-org", "room-1")).rejects.toMatchObject({
+      code: "NOT_ENOUGH_PLAYERS",
+      status: 400,
     });
   });
 

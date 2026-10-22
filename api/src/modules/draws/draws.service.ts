@@ -57,9 +57,6 @@ export function balancedDraw(players: R18Input[], teamSize: number, maxStarsPerT
   }
   const leftoverIds = leftovers.map((p) => p.userId);
 
-  // Weight value lookup
-  const WEIGHT = { REGULAR: 1, GOOD: 2, STAR: 3 } as const;
-
   // Initialize team buckets
   const teams: R18Team[] = Array.from({ length: numTeams }, () => ({
     playerIds: [],
@@ -116,7 +113,7 @@ export function balancedDraw(players: R18Input[], teamSize: number, maxStarsPerT
       const chosen = narrowed[crypto.randomInt(narrowed.length)]!;
 
       chosen.playerIds.push(player.userId);
-      chosen.weightTotal += WEIGHT[level];
+      chosen.weightTotal += WEIGHT_VALUE[level];
       if (level === "STAR") chosen.starCount++;
     }
   }
@@ -287,6 +284,14 @@ export async function drawTeams(userId: string, roomId: string): Promise<DrawRes
     where: { roomId, status: "CONFIRMED", playRole: "LINE" },
     select: { userId: true, user: { select: { name: true } } },
   });
+
+  if (lineMembers.length < 2 * room.teamSize) {
+    throw makeError(
+      `São necessários pelo menos ${2 * room.teamSize} jogadores de linha confirmados para sortear.`,
+      400,
+      "NOT_ENOUGH_PLAYERS",
+    );
+  }
 
   const playerIds = lineMembers.map((m) => m.userId);
   const storedWeights = await prisma.playerWeight.findMany({
