@@ -43,7 +43,7 @@ export async function drawTeams(userId: string, roomId: string): Promise<DrawRes
   if (!room) {
     throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
   }
-  if (room.status === "DRAWN" || room.status === "CANCELED" || room.status === "FINISHED") {
+  if (room.status !== "OPEN" && room.status !== "LOCKED") {
     throw makeError(
       "Não é possível realizar o sorteio nesta sala.",
       400,

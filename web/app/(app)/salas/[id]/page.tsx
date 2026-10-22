@@ -60,7 +60,7 @@ export default function SalaPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { room, isLoading, mutate } = useRoom(id);
-  const { draw, mutate: mutateDraw } = useDraw(id);
+  const { draw, mutate: mutateDraw } = useDraw(room?.myMember != null ? id : "");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   if (isLoading) {
