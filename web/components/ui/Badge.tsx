@@ -20,7 +20,7 @@ const colorClass: Record<Status, string> = {
   Espera: "bg-status-info-subtle text-status-info",
   Recusado: "bg-status-danger-subtle text-status-danger",
   Organizador: "bg-accent-subtle text-accent-default",
-  "Ao vivo": "bg-[var(--color-status-danger-subtle)] text-[var(--color-status-danger)]",
+  "Ao vivo": "bg-status-danger-subtle text-status-danger",
 };
 
 export function Badge({ status, className }: BadgeProps) {
@@ -36,7 +36,7 @@ export function Badge({ status, className }: BadgeProps) {
         .join(" ")}
     >
       {status === "Ao vivo" && (
-        <span className="inline-block w-[6px] h-[6px] rounded-full bg-[var(--color-status-danger)] mr-[4px]" />
+        <span className="inline-block w-[6px] h-[6px] rounded-full bg-status-danger mr-[4px]" />
       )}
       {labelMap[status]}
     </span>

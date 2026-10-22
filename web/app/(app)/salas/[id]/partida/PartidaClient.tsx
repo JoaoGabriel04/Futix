@@ -79,6 +79,10 @@ export function PartidaClient({ id }: PartidaClientProps) {
   // Track previous scores for goal diffing in socket handler
   const prevScoreRef = useRef<{ scoreA: number; scoreB: number }>({ scoreA: 0, scoreB: 0 });
 
+  // Always-current session ref so socket handlers resolve team names even after SWR updates
+  const sessionRef = useRef(session);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
   const match = session?.currentMatch ?? null;
 
   // Keep prevScoreRef in sync with the latest known score from SWR
@@ -106,8 +110,8 @@ export function PartidaClient({ id }: PartidaClientProps) {
       addEvent({
         id: Date.now().toString(),
         atSecond: data.elapsedSeconds,
-        title: "Inicio",
-        subtitle: `Partida ${session?.currentMatch?.number ?? ""} comeou`,
+        title: "Início",
+        subtitle: `Partida ${sessionRef.current?.currentMatch?.number ?? ""} começou`,
       });
     }
 
@@ -118,9 +122,10 @@ export function PartidaClient({ id }: PartidaClientProps) {
       const prev = prevScoreRef.current;
       let scoringTeamName = "";
 
-      if (session) {
-        const teamA = session.teams.find((t) => t.id === session.currentMatch?.teamAId);
-        const teamB = session.teams.find((t) => t.id === session.currentMatch?.teamBId);
+      const currentSession = sessionRef.current;
+      if (currentSession) {
+        const teamA = currentSession.teams.find((t) => t.id === currentSession.currentMatch?.teamAId);
+        const teamB = currentSession.teams.find((t) => t.id === currentSession.currentMatch?.teamBId);
         if (data.scoreA > prev.scoreA && teamA) {
           scoringTeamName = teamA.name;
         } else if (data.scoreB > prev.scoreB && teamB) {
@@ -135,7 +140,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       addEvent({
         id: Date.now().toString(),
         atSecond: data.elapsedSeconds,
-        title: scoringTeamName ? `Gol - ${scoringTeamName}` : "Gol",
+        title: scoringTeamName ? `Gol · ${scoringTeamName}` : "Gol",
         subtitle: "",
       });
     }
