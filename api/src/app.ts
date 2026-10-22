@@ -1,7 +1,6 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { type Express } from "express";
-import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import passport from "passport";
 import { env } from "./env.js";
@@ -23,14 +22,6 @@ export function createApp(): Express {
   );
   app.use(express.json());
   app.use(cookieParser());
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 200,
-      standardHeaders: true,
-      legacyHeaders: false,
-    }),
-  );
   app.use(passport.initialize());
 
   app.get("/health", (_req, res) => {

@@ -59,27 +59,31 @@ passport.use(
 );
 
 // ── Rate limiter ─────────────────────────────────────────────────────────────
+// Only applied to OAuth initiation routes — prevents bot-triggered auth loops.
+// /auth/refresh and /auth/logout are excluded: refresh is called automatically
+// by the client on token expiry, so rate-limiting it would break normal usage.
 
-const authLimiter = rateLimit({
+const oauthInitLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Muitas tentativas. Aguarde e tente novamente." } },
 });
 
 // ── Router ───────────────────────────────────────────────────────────────────
 
 const router: IRouter = Router();
 
-router.use(authLimiter);
-
 router.get(
   "/auth/google",
+  oauthInitLimiter,
   passport.authenticate("google", { session: false, scope: ["profile", "email"] }),
 );
 
 router.get(
   "/auth/google/callback",
+  oauthInitLimiter,
   passport.authenticate("google", {
     session: false,
     failureRedirect: `${env.WEB_URL}/entrar`,
@@ -89,11 +93,13 @@ router.get(
 
 router.get(
   "/auth/discord",
+  oauthInitLimiter,
   passport.authenticate("discord", { session: false }),
 );
 
 router.get(
   "/auth/discord/callback",
+  oauthInitLimiter,
   passport.authenticate("discord", {
     session: false,
     failureRedirect: `${env.WEB_URL}/entrar`,
