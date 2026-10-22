@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
@@ -160,21 +161,28 @@ export async function useInvite(
     throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
   }
 
-  await prisma.$transaction([
-    prisma.invite.update({
-      where: { id: invite.id },
-      data: { usedAt: new Date(), usedById: userId },
-    }),
-    prisma.roomMember.create({
-      data: {
-        roomId: invite.roomId,
-        userId,
-        role: "PLAYER",
-        playRole: "LINE",
-        status: room.requireApproval ? "PENDING" : "CONFIRMED",
-      },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.invite.update({
+        where: { id: invite.id },
+        data: { usedAt: new Date(), usedById: userId },
+      }),
+      prisma.roomMember.create({
+        data: {
+          roomId: invite.roomId,
+          userId,
+          role: "PLAYER",
+          playRole: "LINE",
+          status: room.requireApproval ? "PENDING" : "CONFIRMED",
+        },
+      }),
+    ]);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      throw makeError("Você já é membro desta sala.", 409, "ALREADY_MEMBER");
+    }
+    throw err;
+  }
 
   return { roomId: invite.roomId };
 }
