@@ -31,18 +31,18 @@ export function SorteioClient({ id }: SorteioClientProps) {
     );
   }
 
-  if (!isLoading && draw === null) {
+  if (!room) {
     return (
       <p className="text-body-regular text-text-muted p-[var(--space-lg)]">
-        Nenhum sorteio realizado ainda.
+        Sala não encontrada.
       </p>
     );
   }
 
-  if (!room || !draw) {
+  if (draw === null) {
     return (
       <p className="text-body-regular text-text-muted p-[var(--space-lg)]">
-        Carregando...
+        Nenhum sorteio realizado ainda.
       </p>
     );
   }

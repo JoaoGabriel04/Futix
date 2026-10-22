@@ -23,6 +23,8 @@ export function BottomSheet({ open, onClose, children }: BottomSheetProps) {
 
       {/* Sheet panel */}
       <div
+        role="dialog"
+        aria-modal="true"
         className={[
           "relative z-50 bg-bg-surface border border-border-default",
           "rounded-tl-[var(--radius-xl)] rounded-tr-[var(--radius-xl)]",

@@ -9,14 +9,9 @@ import { Button } from "../../../../../components/ui/Button";
 import { BottomSheet } from "../../../../../components/ui/BottomSheet";
 import { useRoom } from "../../../../../hooks/useRoom";
 import { apiFetch } from "../../../../../lib/api";
-import type { DrawResult } from "../../../../../hooks/useDraw";
-
 interface GestaoClientProps {
   id: string;
 }
-
-// Minimal type for the start endpoint response (org-level draw result)
-type DrawResultForOrg = DrawResult;
 
 export function GestaoClient({ id }: GestaoClientProps) {
   const router = useRouter();
@@ -79,7 +74,7 @@ export function GestaoClient({ id }: GestaoClientProps) {
     setIsStarting(true);
     setStartError(null);
     try {
-      await apiFetch<DrawResultForOrg>(`/rooms/${id}/start`, { method: "POST" });
+      await apiFetch(`/rooms/${id}/start`, { method: "POST" });
       await mutate();
       setShowStartSheet(false);
       router.push(`/salas/${id}/sorteio`);
