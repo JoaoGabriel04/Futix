@@ -11,6 +11,7 @@ import { membersRouter } from "./modules/members/members.routes.js";
 import { roomsRouter } from "./modules/rooms/rooms.routes.js";
 import { invitesRouter } from "./modules/invites/invites.routes.js";
 import { drawsRouter } from "./modules/draws/draws.routes.js";
+import { weightsRouter } from "./modules/weights/weights.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -36,6 +37,7 @@ export function createApp(): Express {
   app.use("/rooms", membersRouter);
   app.use(invitesRouter);
   app.use(drawsRouter);
+  app.use(weightsRouter);
 
   app.use(errorHandler);
 

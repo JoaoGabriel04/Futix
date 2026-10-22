@@ -281,9 +281,10 @@ describe("updateRoom — Regra 11 validations", () => {
       status: "LOCKED",
       members: [],
     };
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
     prismaMock.room.findUnique.mockResolvedValue(lockedRoom);
 
-    await expect(updateRoom("room-1", { title: "Novo título" })).rejects.toMatchObject({
+    await expect(updateRoom("user-1", "room-1", { title: "Novo título" })).rejects.toMatchObject({
       code: "ROOM_NOT_OPEN",
       status: 400,
     });
@@ -301,9 +302,10 @@ describe("updateRoom — Regra 11 validations", () => {
         { playRole: "LINE" },
       ],
     };
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
     prismaMock.room.findUnique.mockResolvedValue(roomWithMembers);
 
-    await expect(updateRoom("room-1", { lineSlots: 2 })).rejects.toMatchObject({
+    await expect(updateRoom("user-1", "room-1", { lineSlots: 2 })).rejects.toMatchObject({
       code: "SLOTS_BELOW_CONFIRMED",
       status: 400,
     });
@@ -320,9 +322,10 @@ describe("updateRoom — Regra 11 validations", () => {
         { playRole: "GOALKEEPER" },
       ],
     };
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
     prismaMock.room.findUnique.mockResolvedValue(roomWithMembers);
 
-    await expect(updateRoom("room-1", { goalkeeperSlots: 1 })).rejects.toMatchObject({
+    await expect(updateRoom("user-1", "room-1", { goalkeeperSlots: 1 })).rejects.toMatchObject({
       code: "SLOTS_BELOW_CONFIRMED",
       status: 400,
     });
@@ -336,10 +339,11 @@ describe("updateRoom — Regra 11 validations", () => {
       status: "OPEN",
       members: [{ playRole: "LINE" }],
     };
+    prismaMock.roomMember.findFirst.mockResolvedValue({ id: "member-1" });
     prismaMock.room.findUnique.mockResolvedValue(roomWithMembers);
     prismaMock.room.update.mockResolvedValue({ ...FAKE_ROOM, lineSlots: 20 });
 
-    const result = await updateRoom("room-1", { lineSlots: 20 });
+    const result = await updateRoom("user-1", "room-1", { lineSlots: 20 });
 
     expect(prismaMock.room.update).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ lineSlots: 20 });

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { createRoomSchema, updateRoomSchema } from "@fut/shared";
+import { createRoomSchema, updateRoomSchema, updateRoomRulesSchema } from "@fut/shared";
 import {
   createRoom,
   listRooms,
@@ -76,28 +76,29 @@ export async function updateRoomHandler(
   next: NextFunction,
 ): Promise<void> {
   const roomId = req.params["id"];
-
   if (!roomId) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "ID da sala ausente." } });
+    return;
+  }
+
+  const formatParsed = updateRoomSchema.safeParse(req.body);
+  if (!formatParsed.success) {
     res.status(400).json({
-      error: { code: "VALIDATION_ERROR", message: "ID da sala ausente." },
+      error: { code: "VALIDATION_ERROR", message: "Dados inválidos.", details: formatParsed.error.flatten() },
     });
     return;
   }
 
-  const parsed = updateRoomSchema.safeParse(req.body);
-  if (!parsed.success) {
+  const rulesParsed = updateRoomRulesSchema.safeParse(req.body);
+  if (!rulesParsed.success) {
     res.status(400).json({
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Dados inválidos.",
-        details: parsed.error.flatten(),
-      },
+      error: { code: "VALIDATION_ERROR", message: "Dados inválidos.", details: rulesParsed.error.flatten() },
     });
     return;
   }
 
   try {
-    const room = await updateRoom(roomId, parsed.data);
+    const room = await updateRoom(req.userId, roomId, formatParsed.data, rulesParsed.data);
     res.json(room);
   } catch (err) {
     next(err);

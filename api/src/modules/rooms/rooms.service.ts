@@ -1,6 +1,6 @@
 import type { Room, RoomMember } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import type { CreateRoomInput, UpdateRoomInput } from "@fut/shared";
+import type { CreateRoomInput, UpdateRoomInput, UpdateRoomRulesInput } from "@fut/shared";
 import { getIo } from "../../socket.js";
 
 // ── types ──────────────────────────────────────────────────────────────────────
@@ -156,12 +156,38 @@ export async function getRoom(roomId: string, userId: string): Promise<RoomDetai
   };
 }
 
-export async function updateRoom(roomId: string, data: UpdateRoomInput): Promise<Room> {
-  if (data.startsAt !== undefined) {
-    assertFutureDate(data.startsAt);
+export async function updateRoom(
+  userId: string,
+  roomId: string,
+  data: UpdateRoomInput,
+  rulesData?: UpdateRoomRulesInput,
+): Promise<Room> {
+  const hasFormatFields =
+    data.title !== undefined ||
+    data.location !== undefined ||
+    data.startsAt !== undefined ||
+    data.lineSlots !== undefined ||
+    data.teamSize !== undefined ||
+    data.goalkeeperSlots !== undefined ||
+    data.requireApproval !== undefined;
+
+  const hasRulesFields =
+    rulesData !== undefined &&
+    (rulesData.matchMinutes !== undefined ||
+      rulesData.winnerRule !== undefined ||
+      rulesData.maxStarsPerTeam !== undefined);
+
+  if (!hasFormatFields && !hasRulesFields) {
+    throw makeError("Nenhum campo para atualizar.", 400, "NO_FIELDS");
   }
 
-  // Regra 11 — busca sala com contagens de confirmados
+  // ORGANIZER check applies to both operations
+  const member = await prisma.roomMember.findFirst({
+    where: { roomId, userId, role: "ORGANIZER", status: "CONFIRMED" },
+    select: { id: true },
+  });
+  if (!member) throw makeError("Apenas o organizador pode alterar a sala.", 403, "NOT_ORGANIZER");
+
   const room = await prisma.room.findUnique({
     where: { id: roomId },
     include: {
@@ -171,27 +197,41 @@ export async function updateRoom(roomId: string, data: UpdateRoomInput): Promise
       },
     },
   });
-
   if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
-  if (room.status !== "OPEN") throw makeError("Só é possível alterar o formato de uma sala aberta.", 400, "ROOM_NOT_OPEN");
 
-  const confirmedLine = room.members.filter((m) => m.playRole === "LINE").length;
-  const confirmedGoalkeepers = room.members.filter((m) => m.playRole === "GOALKEEPER").length;
+  // Format fields: OPEN only
+  if (hasFormatFields) {
+    if (room.status !== "OPEN") {
+      throw makeError("Só é possível alterar o formato de uma sala aberta.", 400, "ROOM_NOT_OPEN");
+    }
 
-  if (data.lineSlots !== undefined && data.lineSlots < confirmedLine) {
-    throw makeError(
-      `Não é possível reduzir as vagas abaixo dos ${confirmedLine} jogadores confirmados.`,
-      400,
-      "SLOTS_BELOW_CONFIRMED",
-    );
+    if (data.startsAt !== undefined) assertFutureDate(data.startsAt);
+
+    const confirmedLine = room.members.filter((m) => m.playRole === "LINE").length;
+    const confirmedGoalkeepers = room.members.filter((m) => m.playRole === "GOALKEEPER").length;
+
+    if (data.lineSlots !== undefined && data.lineSlots < confirmedLine) {
+      throw makeError(
+        `Não é possível reduzir as vagas abaixo dos ${confirmedLine} jogadores confirmados.`,
+        400,
+        "SLOTS_BELOW_CONFIRMED",
+      );
+    }
+    if (data.goalkeeperSlots !== undefined && data.goalkeeperSlots < confirmedGoalkeepers) {
+      throw makeError(
+        `Não é possível reduzir as vagas abaixo dos ${confirmedGoalkeepers} goleiros confirmados.`,
+        400,
+        "SLOTS_BELOW_CONFIRMED",
+      );
+    }
   }
 
-  if (data.goalkeeperSlots !== undefined && data.goalkeeperSlots < confirmedGoalkeepers) {
-    throw makeError(
-      `Não é possível reduzir as vagas abaixo dos ${confirmedGoalkeepers} goleiros confirmados.`,
-      400,
-      "SLOTS_BELOW_CONFIRMED",
-    );
+  // Rules fields: OPEN, LOCKED, or DRAWN only
+  if (hasRulesFields) {
+    const allowed = ["OPEN", "LOCKED", "DRAWN"] as const;
+    if (!(allowed as readonly string[]).includes(room.status)) {
+      throw makeError("Não é possível alterar as regras após o início das partidas.", 400, "ROOM_STARTED");
+    }
   }
 
   return prisma.room.update({
@@ -204,6 +244,9 @@ export async function updateRoom(roomId: string, data: UpdateRoomInput): Promise
       ...(data.teamSize !== undefined && { teamSize: data.teamSize }),
       ...(data.goalkeeperSlots !== undefined && { goalkeeperSlots: data.goalkeeperSlots }),
       ...(data.requireApproval !== undefined && { requireApproval: data.requireApproval }),
+      ...(rulesData?.matchMinutes !== undefined && { matchMinutes: rulesData.matchMinutes }),
+      ...(rulesData?.winnerRule !== undefined && { winnerRule: rulesData.winnerRule }),
+      ...(rulesData?.maxStarsPerTeam !== undefined && { maxStarsPerTeam: rulesData.maxStarsPerTeam }),
     },
   });
 }
