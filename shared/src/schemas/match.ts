@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createGoalSchema = z.object({
   teamId: z.string().min(1),
-  scorerId: z.string().min(1),
+  scorerId: z.string().min(1).optional(),
   assistId: z.string().min(1).optional(),
   ownGoal: z.boolean().optional(),
 });

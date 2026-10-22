@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
+import { Prisma } from "@prisma/client";
 import { getIo } from "../../socket.js";
 import { GOALS_TO_WIN } from "@fut/shared";
 import type { CreateGoalInput } from "@fut/shared";
@@ -466,8 +467,8 @@ export async function addGoal(
       throw makeError("Assistência não é permitida em gol contra.", 422, "INVALID_ASSIST");
     }
   } else {
-    // Regular goal: scorerId must be in scoring team
-    if (!scoringTeamPlayerIds.includes(input.scorerId)) {
+    // Regular goal: scorerId is required and must be in scoring team
+    if (!input.scorerId || !scoringTeamPlayerIds.includes(input.scorerId)) {
       throw makeError("Marcador inválido: jogador não pertence ao time.", 422, "INVALID_SCORER");
     }
     if (input.assistId) {
@@ -484,8 +485,8 @@ export async function addGoal(
   const now = new Date();
   const atSecond = match.elapsedSeconds + Math.floor((now.getTime() - match.startedAt.getTime()) / 1000);
 
-  // Transaction with row-level lock via raw query pattern (Prisma doesn't expose SELECT FOR UPDATE directly)
-  // We use a transaction and recompute score from events inside
+  // Serializable isolation ensures concurrent addGoal calls are ordered by the DB,
+  // preventing double-finish or score exceeding GOALS_TO_WIN under race conditions.
   const eventType = input.ownGoal === true ? "OWN_GOAL" : "GOAL";
 
   let rotationResult: ReturnType<typeof computeRotation> | null = null;
@@ -544,7 +545,7 @@ export async function addGoal(
       where: { id: matchId },
       data: { scoreA, scoreB },
     });
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   const result = toMatchForOrg(updated as PrismaMatch);
 
