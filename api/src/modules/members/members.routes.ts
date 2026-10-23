@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import rateLimit from "express-rate-limit";
 import { requireAuth } from "../../middlewares/auth.js";
 import { requireOrganizerRole } from "../../middlewares/roomRole.js";
 import {
@@ -12,9 +13,17 @@ import {
   handleRemoveCoOrganizer,
 } from "./members.controller.js";
 
+const joinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Muitas tentativas. Aguarde e tente novamente." } },
+});
+
 const router: IRouter = Router();
 
-router.post("/:id/join", requireAuth, handleJoin);
+router.post("/:id/join", joinLimiter, requireAuth, handleJoin);
 router.delete("/:id/join", requireAuth, handleLeave);
 
 router.post("/:id/members/:memberId/approve", requireAuth, requireOrganizerRole, handleApprove);
