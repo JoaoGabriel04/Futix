@@ -11,7 +11,7 @@ import type { SessionTeam, SessionMatch } from "../../../../../hooks/useRoomSess
 import { useMatchTimer } from "../../../../../hooks/useMatchTimer";
 import { useWeights } from "../../../../../hooks/useWeights";
 import { getSocket } from "../../../../../lib/socket";
-import { pauseMatch, resumeMatch, endMatch, undoLastGoal, startMatch } from "../../../../../lib/matchApi";
+import { pauseMatch, resumeMatch, endMatch, undoLastGoal, startMatch, finishRoom } from "../../../../../lib/matchApi";
 import { apiFetch } from "../../../../../lib/api";
 import { keys } from "../../../../../lib/keys";
 import { Badge } from "../../../../../components/ui/Badge";
@@ -93,6 +93,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
   const [loadingPause, setLoadingPause] = useState(false);
   const [loadingEnd, setLoadingEnd] = useState(false);
   const [loadingStart, setLoadingStart] = useState(false);
+  const [loadingFinish, setLoadingFinish] = useState(false);
 
   // Track previous scores for goal diffing in socket handler
   const prevScoreRef = useRef<{ scoreA: number; scoreB: number }>({ scoreA: 0, scoreB: 0 });
@@ -215,12 +216,17 @@ export function PartidaClient({ id }: PartidaClientProps) {
       mutateSession();
     }
 
+    function handleRoomFinished() {
+      router.push(`/salas/${id}/resumo`);
+    }
+
     socket.on("match:started", handleStarted);
     socket.on("match:goal", handleGoal);
     socket.on("match:goal-undone", handleGoalUndone);
     socket.on("match:paused", handlePaused);
     socket.on("match:resumed", handleResumed);
     socket.on("match:ended", handleMatchEnded);
+    socket.on("room:finished", handleRoomFinished);
 
     return () => {
       socket.off("match:started", handleStarted);
@@ -229,6 +235,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       socket.off("match:paused", handlePaused);
       socket.off("match:resumed", handleResumed);
       socket.off("match:ended", handleMatchEnded);
+      socket.off("room:finished", handleRoomFinished);
       socket.emit("room:leave", id);
       socket.disconnect();
     };
@@ -355,6 +362,19 @@ export function PartidaClient({ id }: PartidaClientProps) {
       alert((e as Error).message);
     } finally {
       setLoadingStart(false);
+    }
+  }
+
+  async function handleFinishRoom() {
+    const confirmed = window.confirm("Encerrar a sala? Esta ação não pode ser desfeita.");
+    if (!confirmed) return;
+    setLoadingFinish(true);
+    try {
+      await finishRoom(id);
+      router.push(`/salas/${id}/resumo`);
+    } catch (e) {
+      alert((e as Error).message ?? "Erro ao encerrar sala.");
+      setLoadingFinish(false);
     }
   }
 
@@ -544,12 +564,25 @@ export function PartidaClient({ id }: PartidaClientProps) {
                 {loadingStart ? "Iniciando..." : `Iniciar partida ${nextMatchNumber}`}
               </Button>
             )}
+
+            {/* Finish room button — org/co-org only, visible in right column on desktop */}
+            {isOrgOrCoOrg && (
+              <Button
+                variant="Ghost"
+                size="Large"
+                className="w-full hidden lg:flex"
+                onClick={handleFinishRoom}
+                disabled={loadingFinish}
+              >
+                {loadingFinish ? "Encerrando..." : "Encerrar sala"}
+              </Button>
+            )}
           </div>
         </div>
 
         {/* Bottom action bar — org/co-org only, mobile */}
         {isOrgOrCoOrg && (
-          <div className="bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)] lg:hidden">
+          <div className="bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)] lg:hidden flex flex-col gap-[var(--space-sm)]">
             <Button
               variant="Primary"
               size="Large"
@@ -558,6 +591,15 @@ export function PartidaClient({ id }: PartidaClientProps) {
               disabled={loadingStart}
             >
               {loadingStart ? "Iniciando..." : `Iniciar partida ${nextMatchNumber}`}
+            </Button>
+            <Button
+              variant="Ghost"
+              size="Large"
+              className="w-full"
+              onClick={handleFinishRoom}
+              disabled={loadingFinish}
+            >
+              {loadingFinish ? "Encerrando..." : "Encerrar sala"}
             </Button>
           </div>
         )}

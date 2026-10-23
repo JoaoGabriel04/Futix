@@ -27,3 +27,7 @@ export async function addGoal(matchId: string, payload: CreateGoalInput): Promis
 export async function undoLastGoal(matchId: string): Promise<void> {
   return apiFetch<void>(`/matches/${matchId}/goals/last`, { method: "DELETE" });
 }
+
+export async function finishRoom(roomId: string): Promise<void> {
+  await apiFetch<void>(`/rooms/${roomId}/finish`, { method: "POST" });
+}
