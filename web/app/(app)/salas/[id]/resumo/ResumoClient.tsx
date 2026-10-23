@@ -36,8 +36,12 @@ function buildShareText(room: { title: string }, summary: Summary): string {
     `${summary.totalMatches} partida${summary.totalMatches !== 1 ? "s" : ""} · ${summary.totalGoals} gol${summary.totalGoals !== 1 ? "s" : ""} · ${formatPlayTime(summary.totalPlaySeconds)}`,
     "",
     "Artilharia:",
-    ...summary.scorers.slice(0, 5).map((s, i) => `${i + 1}. ${s.name} — ${s.goals} gol${s.goals !== 1 ? "s" : ""}`),
   ];
+  if (summary.scorers.length === 0) {
+    lines.push("Sem gols registrados.");
+  } else {
+    lines.push(...summary.scorers.slice(0, 5).map((s, i) => `${i + 1}. ${s.name} — ${s.goals} gol${s.goals !== 1 ? "s" : ""}`));
+  }
   if (summary.assists.length > 0) {
     lines.push("", "Assistências:");
     summary.assists.slice(0, 5).forEach((a, i) => {
@@ -93,7 +97,7 @@ export function ResumoClient({ id }: { id: string }) {
         {/* header row */}
         <div className="flex items-center gap-[var(--space-md)]">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push(`/salas/${id}`)}
             className="flex items-center justify-center shrink-0 text-text-primary"
             aria-label="Voltar"
           >

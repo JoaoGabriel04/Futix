@@ -371,7 +371,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
     setLoadingFinish(true);
     try {
       await finishRoom(id);
-      router.push(`/salas/${id}/resumo`);
+      // navigation is driven by the room:finished socket event for all clients, including the organizer
     } catch (e) {
       alert((e as Error).message ?? "Erro ao encerrar sala.");
       setLoadingFinish(false);
