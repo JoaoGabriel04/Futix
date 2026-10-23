@@ -11,6 +11,7 @@ interface MatchCardProps {
   vagas: string;
   status?: BadgeStatus;
   progressValue?: number; // 0–100
+  isLive?: boolean;
   className?: string;
 }
 
@@ -21,6 +22,7 @@ export function MatchCard({
   vagas,
   status,
   progressValue = 0,
+  isLive,
   className,
 }: MatchCardProps) {
   return (
@@ -39,7 +41,10 @@ export function MatchCard({
           <p className="text-heading-h3 text-text-primary truncate">{titulo}</p>
           <p className="text-caption-regular text-text-muted">{quando}</p>
         </div>
-        {status && <Badge status={status} className="shrink-0" />}
+        <div className="flex gap-[var(--space-xs)] items-center shrink-0">
+          {isLive && <Badge status="Ao vivo" />}
+          {status && !isLive && <Badge status={status} />}
+        </div>
       </div>
 
       {/* Detalhes: local e vagas */}

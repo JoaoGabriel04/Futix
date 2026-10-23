@@ -6,6 +6,7 @@ import { ArrowLeft, Info, EyeOff, Hand } from "lucide-react";
 import { useRoom } from "../../../../../hooks/useRoom";
 import { useDraw } from "../../../../../hooks/useDraw";
 import { apiFetch } from "../../../../../lib/api";
+import { startMatch } from "../../../../../lib/matchApi";
 import { Button } from "../../../../../components/ui/Button";
 import { WeightChip } from "../../../../../components/ui/WeightChip";
 
@@ -20,6 +21,21 @@ export function SorteioClient({ id }: SorteioClientProps) {
 
   const [isRedrawing, setIsRedrawing] = useState(false);
   const [redrawError, setRedrawError] = useState<string | null>(null);
+
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  async function handleStartMatch() {
+    setIsStarting(true);
+    setStartError(null);
+    try {
+      await startMatch(id);
+      router.push(`/salas/${id}/partida`);
+    } catch (e) {
+      setStartError((e as Error).message);
+      setIsStarting(false);
+    }
+  }
 
   const isLoading = roomLoading || drawLoading;
 
@@ -168,6 +184,9 @@ export function SorteioClient({ id }: SorteioClientProps) {
         {redrawError && (
           <p className="text-caption-regular text-status-danger">{redrawError}</p>
         )}
+        {startError && (
+          <p className="text-caption-regular text-status-danger">{startError}</p>
+        )}
 
         <div className="flex-1" />
       </div>
@@ -189,9 +208,10 @@ export function SorteioClient({ id }: SorteioClientProps) {
               variant="Primary"
               size="Large"
               className="flex-1"
-              disabled
+              onClick={handleStartMatch}
+              disabled={isStarting}
             >
-              Iniciar partida 1
+              {isStarting ? "Iniciando..." : "Iniciar partida 1"}
             </Button>
           </div>
         </div>

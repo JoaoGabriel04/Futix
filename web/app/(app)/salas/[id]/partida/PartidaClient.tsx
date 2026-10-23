@@ -398,126 +398,150 @@ export function PartidaClient({ id }: PartidaClientProps) {
     return (
       <div className="bg-bg-app flex flex-col h-full">
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-[var(--space-lg)] flex flex-col gap-[var(--space-lg)]">
-          {/* Header */}
-          <div className="flex items-center gap-[var(--space-md)]">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="text-text-secondary hover:text-text-primary transition-colors"
-              aria-label="Voltar"
-            >
-              <ArrowLeft size={22} />
-            </button>
-            <div className="flex flex-col flex-1 min-w-0">
-              <p className="text-heading-h3 text-text-primary">
-                Partida {fm.number} encerrada
-              </p>
-              <p className="text-caption-regular text-text-secondary truncate">
-                {room?.title ?? ""}
-              </p>
-            </div>
-          </div>
-
-          {/* Result card */}
-          <div className="bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
-            <div className="flex items-center justify-center gap-[var(--space-lg)]">
-              <p className="text-body-strong text-text-primary text-right flex-1">{finTeamA?.name ?? ""}</p>
-              <p className={`text-display-h1 ${winnerIsA ? "text-accent-default" : "text-text-primary"}`}>
-                {fm.scoreA}
-              </p>
-              <p className="text-heading-h3 text-text-muted">x</p>
-              <p className={`text-display-h1 ${winnerIsB ? "text-accent-default" : "text-text-primary"}`}>
-                {fm.scoreB}
-              </p>
-              <p className="text-body-strong text-text-primary flex-1">{finTeamB?.name ?? ""}</p>
-            </div>
-            <p className="text-caption-regular text-text-secondary text-center">{resultSubtitle}</p>
-          </div>
-
-          {/* TROCAS SORTEADAS section */}
-          <div className="bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
-            <p className="text-overline text-text-muted">Trocas sorteadas</p>
-
-            {!hasSwaps ? (
-              <p className="text-caption-regular text-text-muted">Sem trocas nesta rodada.</p>
-            ) : (
-              <>
-                {/* Description text */}
-                {(() => {
-                  const firstSwap = swaps[0];
-                  if (!firstSwap) return null;
-                  return (
-                    <p className="text-caption-regular text-text-secondary">
-                      {session.teams.find((t) => t.id === firstSwap.teamId)?.name ?? "Time"} perdeu e troca{" "}
-                      {firstSwap.outPlayerIds.length} jogador{firstSwap.outPlayerIds.length !== 1 ? "es" : ""} com{" "}
-                      {session.teams.find((t) => t.id === firstSwap.withTeamId)?.name ?? "Time"}, a última barreira,
-                      por peso equivalente.
-                    </p>
-                  );
-                })()}
-
-                {/* Swap rows */}
-                {swaps.map((swap, swapIdx) => {
-                  const loserTeamName = session.teams.find((t) => t.id === swap.teamId)?.name ?? "?";
-                  const barrierTeamName = session.teams.find((t) => t.id === swap.withTeamId)?.name ?? "?";
-                  return swap.outPlayerIds.map((outId, pairIdx) => {
-                    const inId = swap.inPlayerIds[pairIdx];
-                    const outPlayerName = resolveMemberName(outId);
-                    const inPlayerName = inId ? resolveMemberName(inId) : "?";
-                    const outLevel = isOrgOrCoOrg ? weights.find((w) => w.playerId === outId)?.level : undefined;
-                    const inLevel = isOrgOrCoOrg && inId ? weights.find((w) => w.playerId === inId)?.level : undefined;
-
-                    return (
-                      <div
-                        key={`${swapIdx}-${pairIdx}`}
-                        className="bg-bg-raised rounded-[var(--radius-md)] p-[var(--space-md)] flex items-center gap-[8px]"
-                      >
-                        {/* Left side: loser player */}
-                        <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
-                          <p className="text-caption-regular text-text-muted">Sai do {loserTeamName}</p>
-                          <div className="flex items-center gap-[var(--space-sm)]">
-                            <p className="text-body-strong text-text-primary">{outPlayerName}</p>
-                            {isOrgOrCoOrg && outLevel && <WeightChip level={outLevel} />}
-                          </div>
-                        </div>
-                        <ArrowLeftRight size={18} className="text-text-muted shrink-0" />
-                        {/* Right side: barrier player */}
-                        <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
-                          <p className="text-caption-regular text-text-muted">Sai do {barrierTeamName}</p>
-                          <div className="flex items-center gap-[var(--space-sm)]">
-                            <p className="text-body-strong text-text-primary">{inPlayerName}</p>
-                            {isOrgOrCoOrg && inLevel && <WeightChip level={inLevel} />}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  });
-                })}
-              </>
-            )}
-          </div>
-
-          {/* PRÓXIMA PARTIDA card */}
-          <div className="bg-accent-subtle border border-accent-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
-            <p className="text-overline text-text-muted">Próxima partida</p>
+        <div
+          className={[
+            "flex-1 overflow-y-auto p-[var(--space-lg)] flex flex-col gap-[var(--space-lg)]",
+            "lg:grid lg:grid-cols-2 lg:gap-[var(--space-xl)] lg:items-start",
+          ].join(" ")}
+        >
+          {/* LEFT COLUMN */}
+          <div className="flex flex-col gap-[var(--space-lg)]">
+            {/* Header */}
             <div className="flex items-center gap-[var(--space-md)]">
-              <p className="text-caption-strong text-text-secondary flex-1">
-                Partida {nextMatchNumber}
-              </p>
-              <p className="text-heading-h3 text-text-primary">{courtTeams.join(" x ")}</p>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="text-text-secondary hover:text-text-primary transition-colors"
+                aria-label="Voltar"
+              >
+                <ArrowLeft size={22} />
+              </button>
+              <div className="flex flex-col flex-1 min-w-0">
+                <p className="text-heading-h3 text-text-primary">
+                  Partida {fm.number} encerrada
+                </p>
+                <p className="text-caption-regular text-text-secondary truncate">
+                  {room?.title ?? ""}
+                </p>
+              </div>
             </div>
-            {queueNames.length > 0 && (
-              <p className="text-caption-regular text-text-secondary">
-                Fila depois: {queueNames.join(", ")}
-              </p>
+
+            {/* Result card */}
+            <div className="bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
+              <div className="flex items-center justify-center gap-[var(--space-lg)]">
+                <p className="text-body-strong text-text-primary text-right flex-1">{finTeamA?.name ?? ""}</p>
+                <p className={`text-display-h1 ${winnerIsA ? "text-accent-default" : "text-text-primary"}`}>
+                  {fm.scoreA}
+                </p>
+                <p className="text-heading-h3 text-text-muted">x</p>
+                <p className={`text-display-h1 ${winnerIsB ? "text-accent-default" : "text-text-primary"}`}>
+                  {fm.scoreB}
+                </p>
+                <p className="text-body-strong text-text-primary flex-1">{finTeamB?.name ?? ""}</p>
+              </div>
+              <p className="text-caption-regular text-text-secondary text-center">{resultSubtitle}</p>
+            </div>
+
+            {/* TROCAS SORTEADAS section */}
+            <div className="bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
+              <p className="text-overline text-text-muted">Trocas sorteadas</p>
+
+              {!hasSwaps ? (
+                <p className="text-caption-regular text-text-muted">Sem trocas nesta rodada.</p>
+              ) : (
+                <>
+                  {/* Description text */}
+                  {(() => {
+                    const firstSwap = swaps[0];
+                    if (!firstSwap) return null;
+                    return (
+                      <p className="text-caption-regular text-text-secondary">
+                        {session.teams.find((t) => t.id === firstSwap.teamId)?.name ?? "Time"} perdeu e troca{" "}
+                        {firstSwap.outPlayerIds.length} jogador{firstSwap.outPlayerIds.length !== 1 ? "es" : ""} com{" "}
+                        {session.teams.find((t) => t.id === firstSwap.withTeamId)?.name ?? "Time"}, a última barreira,
+                        por peso equivalente.
+                      </p>
+                    );
+                  })()}
+
+                  {/* Swap rows */}
+                  {swaps.map((swap, swapIdx) => {
+                    const loserTeamName = session.teams.find((t) => t.id === swap.teamId)?.name ?? "?";
+                    const barrierTeamName = session.teams.find((t) => t.id === swap.withTeamId)?.name ?? "?";
+                    return swap.outPlayerIds.map((outId, pairIdx) => {
+                      const inId = swap.inPlayerIds[pairIdx];
+                      const outPlayerName = resolveMemberName(outId);
+                      const inPlayerName = inId ? resolveMemberName(inId) : "?";
+                      const outLevel = isOrgOrCoOrg ? weights.find((w) => w.playerId === outId)?.level : undefined;
+                      const inLevel = isOrgOrCoOrg && inId ? weights.find((w) => w.playerId === inId)?.level : undefined;
+
+                      return (
+                        <div
+                          key={`${swapIdx}-${pairIdx}`}
+                          className="bg-bg-raised rounded-[var(--radius-md)] p-[var(--space-md)] flex items-center gap-[8px]"
+                        >
+                          {/* Left side: loser player */}
+                          <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
+                            <p className="text-caption-regular text-text-muted">Sai do {loserTeamName}</p>
+                            <div className="flex items-center gap-[var(--space-sm)]">
+                              <p className="text-body-strong text-text-primary">{outPlayerName}</p>
+                              {isOrgOrCoOrg && outLevel && <WeightChip level={outLevel} />}
+                            </div>
+                          </div>
+                          <ArrowLeftRight size={18} className="text-text-muted shrink-0" />
+                          {/* Right side: barrier player */}
+                          <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
+                            <p className="text-caption-regular text-text-muted">Sai do {barrierTeamName}</p>
+                            <div className="flex items-center gap-[var(--space-sm)]">
+                              <p className="text-body-strong text-text-primary">{inPlayerName}</p>
+                              {isOrgOrCoOrg && inLevel && <WeightChip level={inLevel} />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="flex flex-col gap-[var(--space-lg)]">
+            {/* PRÓXIMA PARTIDA card */}
+            <div className="bg-accent-subtle border border-accent-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
+              <p className="text-overline text-text-muted">Próxima partida</p>
+              <div className="flex items-center gap-[var(--space-md)]">
+                <p className="text-caption-strong text-text-secondary flex-1">
+                  Partida {nextMatchNumber}
+                </p>
+                <p className="text-heading-h3 text-text-primary">{courtTeams.join(" x ")}</p>
+              </div>
+              {queueNames.length > 0 && (
+                <p className="text-caption-regular text-text-secondary">
+                  Fila depois: {queueNames.join(", ")}
+                </p>
+              )}
+            </div>
+
+            {/* Start next match button — org/co-org only, visible in right column on desktop */}
+            {isOrgOrCoOrg && (
+              <Button
+                variant="Primary"
+                size="Large"
+                className="w-full hidden lg:flex"
+                onClick={handleStartNextMatch}
+                disabled={loadingStart}
+              >
+                {loadingStart ? "Iniciando..." : `Iniciar partida ${nextMatchNumber}`}
+              </Button>
             )}
           </div>
         </div>
 
-        {/* Bottom action bar — org/co-org only */}
+        {/* Bottom action bar — org/co-org only, mobile */}
         {isOrgOrCoOrg && (
-          <div className="bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)]">
+          <div className="bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)] lg:hidden">
             <Button
               variant="Primary"
               size="Large"

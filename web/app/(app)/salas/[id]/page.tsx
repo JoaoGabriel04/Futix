@@ -221,6 +221,38 @@ export default function SalaPage() {
         </Button>
       )}
 
+      {/* Live match / drawn teams banner */}
+      {(room.status === "LIVE" || room.status === "DRAWN") && (
+        <div
+          className={[
+            "border rounded-lg p-[var(--space-md)] flex items-center gap-[var(--space-md)] cursor-pointer",
+            room.status === "LIVE"
+              ? "bg-status-danger-subtle border-status-danger"
+              : "bg-accent-subtle border-accent-default",
+          ].join(" ")}
+          onClick={() =>
+            router.push(
+              room.status === "LIVE"
+                ? `/salas/${id}/partida`
+                : `/salas/${id}/sorteio`,
+            )
+          }
+        >
+          {room.status === "LIVE" ? (
+            <>
+              <span className="inline-block w-[8px] h-[8px] rounded-full bg-status-danger shrink-0" />
+              <p className="text-body-strong text-text-primary flex-1">Partida ao vivo</p>
+              <p className="text-caption-regular text-text-muted">Ver →</p>
+            </>
+          ) : (
+            <>
+              <p className="text-body-strong text-text-primary flex-1">Times sorteados</p>
+              <p className="text-caption-regular text-text-muted">Ver →</p>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Tabs */}
       <Tabs.Root defaultValue="linha" className="flex flex-col gap-[var(--space-md)]">
         <Tabs.List
