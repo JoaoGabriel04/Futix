@@ -86,6 +86,7 @@ export default function InicioPage() {
                   vagas={vagas}
                   {...(badgeStatus !== undefined && { status: badgeStatus })}
                   progressValue={progressValue}
+                  isLive={r.status === "LIVE"}
                 />
               </Link>
             );

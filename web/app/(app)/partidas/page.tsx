@@ -88,6 +88,7 @@ export default function PartidasPage() {
                   vagas={vagas}
                   {...(badgeStatus !== undefined && { status: badgeStatus })}
                   progressValue={progressValue}
+                  isLive={r.status === "LIVE"}
                 />
               </Link>
             );
