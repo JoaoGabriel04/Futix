@@ -232,7 +232,6 @@ export function PartidaClient({ id }: PartidaClientProps) {
       socket.emit("room:leave", id);
       socket.disconnect();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // ---------------------------------------------------------------------------
@@ -742,7 +741,6 @@ export function PartidaClient({ id }: PartidaClientProps) {
           teamName={session.teams.find((t) => t.id === goalTeamId)?.name ?? ""}
           playerIds={goalTeamId === match.teamAId ? match.teamAPlayerIds : match.teamBPlayerIds}
           otherTeamPlayerIds={goalTeamId === match.teamAId ? match.teamBPlayerIds : match.teamAPlayerIds}
-          allTeams={session.teams}
           members={room.members}
           elapsedSeconds={timerElapsed}
           onClose={() => setGoalTeamId(null)}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { SessionTeam } from "../../../../../hooks/useRoomSession";
 import type { RoomMemberSummary } from "../../../../../hooks/useRoom";
 import { addGoal } from "../../../../../lib/matchApi";
 import { BottomSheet } from "../../../../../components/ui/BottomSheet";
@@ -28,7 +27,6 @@ interface GoalSheetProps {
   teamName: string;
   playerIds: string[];           // snapshot: teamAPlayerIds or teamBPlayerIds from SessionMatch
   otherTeamPlayerIds: string[];  // snapshot of the OTHER team's players (for own-goal scorer)
-  allTeams: SessionTeam[];       // to resolve team info from session
   members: RoomMemberSummary[];  // room.members for ID → name resolution
   elapsedSeconds: number;
   onClose: () => void;
