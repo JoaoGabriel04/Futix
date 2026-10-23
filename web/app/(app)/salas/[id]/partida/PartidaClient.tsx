@@ -338,10 +338,18 @@ export function PartidaClient({ id }: PartidaClientProps) {
     }
   }
 
-  async function handleEnd() {
+  function handleEnd() {
     if (!match) return;
-    const confirmed = window.confirm("Encerrar a partida agora?");
-    if (!confirmed) return;
+    toast.warning("Encerrar a partida agora?", {
+      action: { label: "Encerrar", onClick: () => { void executeEnd(); } },
+      cancel: { label: "Cancelar", onClick: () => {} },
+      duration: 8000,
+      id: "confirm-end",
+    });
+  }
+
+  async function executeEnd() {
+    if (!match) return;
     setLoadingEnd(true);
     try {
       await endMatch(match.id);
@@ -366,13 +374,20 @@ export function PartidaClient({ id }: PartidaClientProps) {
     }
   }
 
-  async function handleFinishRoom() {
-    const confirmed = window.confirm("Encerrar a sala? Esta ação não pode ser desfeita.");
-    if (!confirmed) return;
+  function handleFinishRoom() {
+    toast.warning("Encerrar a sala? Esta ação não pode ser desfeita.", {
+      action: { label: "Encerrar sala", onClick: () => { void executeFinishRoom(); } },
+      cancel: { label: "Cancelar", onClick: () => {} },
+      duration: 8000,
+      id: "confirm-finish",
+    });
+  }
+
+  async function executeFinishRoom() {
     setLoadingFinish(true);
     try {
       await finishRoom(id);
-      // navigation is driven by the room:finished socket event for all clients, including the organizer
+      // navigation driven by room:finished socket event
     } catch (e) {
       toast.error((e as Error).message ?? "Erro ao encerrar sala.");
       setLoadingFinish(false);

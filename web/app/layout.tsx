@@ -26,11 +26,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     siteName: "Futix",
+    images: [{ url: "/logo-futix.png", width: 512, height: 512 }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Futix",
     description: "Organize o seu racha de futebol",
+    images: ["/logo-futix.png"],
   },
 };
 

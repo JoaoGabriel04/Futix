@@ -17,6 +17,8 @@ import { roomMatchesRouter, matchesRouter } from "./modules/matches/matches.rout
 export function createApp(): Express {
   const app = express();
 
+  app.set("trust proxy", 1); // trust first reverse-proxy hop (Render)
+
   app.use(helmet());
   app.use(
     cors({

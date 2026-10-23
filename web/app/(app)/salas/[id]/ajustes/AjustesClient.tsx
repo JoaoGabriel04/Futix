@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import * as RadixSwitch from "@radix-ui/react-switch";
+import { toast } from "sonner";
 import { Button } from "../../../../../components/ui/Button";
 import { StepperRow } from "../../../../../components/domain/StepperRow";
 import { useRoom } from "../../../../../hooks/useRoom";
@@ -97,11 +98,16 @@ export function AjustesClient({ id }: AjustesClientProps) {
     }
   }
 
-  async function handleCancel() {
-    const confirmed = window.confirm(
-      "Tem certeza que deseja cancelar a sala? Essa ação não pode ser desfeita.",
-    );
-    if (!confirmed) return;
+  function handleCancel() {
+    toast.warning("Tem certeza que deseja cancelar a sala? Essa ação não pode ser desfeita.", {
+      action: { label: "Cancelar sala", onClick: () => { void executeCancel(); } },
+      cancel: { label: "Manter sala", onClick: () => {} },
+      duration: 10000,
+      id: "confirm-cancel",
+    });
+  }
+
+  async function executeCancel() {
     setLoadingAction("cancel");
     try {
       await apiFetch(`/rooms/${id}/cancel`, { method: "POST" });

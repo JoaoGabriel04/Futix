@@ -10,21 +10,21 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#0e0f11",
     theme_color: "#0e0f11",
     icons: [
+      { src: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { src: "/logo-futix.png", sizes: "192x192", type: "image/png" },
       {
-        src: "/favicon-32x32.png",
-        sizes: "32x32",
+        src: "/logo-futix.png",
+        sizes: "512x512",
         type: "image/png",
+        purpose: "maskable",
       },
       {
         src: "/logo-futix.png",
-        sizes: "any",
+        sizes: "512x512",
         type: "image/png",
+        purpose: "any",
       },
-      {
-        src: "/apple-touch-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
+      { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   };
 }

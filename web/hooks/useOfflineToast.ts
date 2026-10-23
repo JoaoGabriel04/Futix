@@ -5,17 +5,15 @@ import { toast } from "sonner";
 
 export function useOfflineToast() {
   useEffect(() => {
-    let toastId: string | number | undefined;
-
     function handleOffline() {
-      toastId = toast.warning("Sem conexão com a internet.", {
+      toast.warning("Sem conexão com a internet.", {
         id: "offline",
         duration: Infinity,
       });
     }
 
     function handleOnline() {
-      toast.dismiss(toastId);
+      toast.dismiss("offline");
       toast.success("Conexão restabelecida.", { id: "online", duration: 3000 });
     }
 
