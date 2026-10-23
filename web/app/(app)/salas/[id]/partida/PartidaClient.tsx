@@ -361,6 +361,14 @@ export function PartidaClient({ id }: PartidaClientProps) {
   // ---------------------------------------------------------------------------
   // FINISHED state (Tela 12)
   // ---------------------------------------------------------------------------
+  if (isFinishedState && !effectiveFinishedMatch) {
+    return (
+      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">
+        Carregando resultado...
+      </p>
+    );
+  }
+
   if (isFinishedState && effectiveFinishedMatch) {
     const fm = effectiveFinishedMatch;
     const finTeamA = session.teams.find((t) => t.id === fm.teamAId);
