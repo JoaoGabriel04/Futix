@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -91,7 +92,7 @@ export default function SalaPage() {
       await apiFetch(`/rooms/${id}/draw`, { method: "POST" });
       await Promise.all([mutate(), mutateDraw()]);
     } catch (e: unknown) {
-      alert((e as { message?: string }).message ?? "Erro ao realizar o sorteio.");
+      toast.error((e as { message?: string }).message ?? "Erro ao realizar o sorteio.");
     } finally {
       setLoadingAction(null);
     }

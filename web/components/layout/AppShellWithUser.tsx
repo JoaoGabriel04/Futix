@@ -1,10 +1,12 @@
 "use client";
 
 import { useMe } from "../../hooks/useMe";
+import { useOfflineToast } from "../../hooks/useOfflineToast";
 import { AppShell } from "./AppShell";
 
 export function AppShellWithUser({ children }: { children: React.ReactNode }) {
   const { user } = useMe();
+  useOfflineToast();
 
   const iniciais = (user?.name ?? "")
     .split(" ")

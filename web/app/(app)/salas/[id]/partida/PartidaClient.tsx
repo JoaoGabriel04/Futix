@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Undo2, Pause, Play, ArrowLeftRight } from "lucide-react";
+import { toast } from "sonner";
 import useSWR from "swr";
 import { GOALS_TO_WIN } from "@fut/shared";
 import { useRoom } from "../../../../../hooks/useRoom";
@@ -314,7 +315,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       await undoLastGoal(match.id);
       await mutateSession();
     } catch (e) {
-      alert((e as Error).message ?? "Erro ao desfazer gol.");
+      toast.error((e as Error).message ?? "Erro ao desfazer gol.");
     } finally {
       setLoadingUndo(false);
     }
@@ -331,7 +332,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       }
       await mutateSession();
     } catch (e) {
-      alert((e as Error).message ?? "Erro ao pausar/retomar partida.");
+      toast.error((e as Error).message ?? "Erro ao pausar/retomar partida.");
     } finally {
       setLoadingPause(false);
     }
@@ -346,7 +347,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       await endMatch(match.id);
       await mutateSession();
     } catch (e) {
-      alert((e as Error).message ?? "Erro ao encerrar partida.");
+      toast.error((e as Error).message ?? "Erro ao encerrar partida.");
     } finally {
       setLoadingEnd(false);
     }
@@ -359,7 +360,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       setFinishedMatch(null);
       await mutateSession();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error((e as Error).message ?? "Erro ao iniciar partida.");
     } finally {
       setLoadingStart(false);
     }
@@ -373,7 +374,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
       await finishRoom(id);
       // navigation is driven by the room:finished socket event for all clients, including the organizer
     } catch (e) {
-      alert((e as Error).message ?? "Erro ao encerrar sala.");
+      toast.error((e as Error).message ?? "Erro ao encerrar sala.");
       setLoadingFinish(false);
     }
   }

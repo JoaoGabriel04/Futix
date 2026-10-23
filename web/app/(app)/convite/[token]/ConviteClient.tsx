@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useInvitePreview } from "../../../../hooks/useInvitePreview";
 import { apiFetch } from "../../../../lib/api";
 import { Button } from "../../../../components/ui/Button";
@@ -26,7 +27,7 @@ export function ConviteClient({ token }: ConviteClientProps) {
         router.push(`/salas/${preview.roomId}`);
         return;
       }
-      alert(err.message ?? "Erro inesperado. Tente novamente.");
+      toast.error(err.message ?? "Erro inesperado. Tente novamente.");
       setLoadingAction(null);
     }
   }
