@@ -114,7 +114,10 @@ export async function changePassword(
   currentPassword: string | undefined,
   newPassword: string,
 ): Promise<User> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { id: true, email: true, passwordHash: true, sessionVersion: true },
+  });
 
   if (user.passwordHash !== null) {
     // Account already has a password — currentPassword is required
