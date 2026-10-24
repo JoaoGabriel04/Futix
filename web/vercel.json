@@ -1,0 +1,3 @@
+{
+  "buildCommand": "pnpm -F @fut/shared build && next build"
+}
