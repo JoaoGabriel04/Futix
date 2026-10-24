@@ -129,6 +129,54 @@ export async function upsertUser(
   return result;
 }
 
+/**
+ * R41 — Link an OAuth provider to an existing user account.
+ *
+ * Called from the OAuth callback when the state indicates `link: true`.
+ * Creates the AuthIdentity for the given userId if it doesn't already exist.
+ *
+ * Throws `EmailInUseOtherMethodError` when the providerId already belongs to
+ * a DIFFERENT user (account takeover prevention).
+ */
+export async function linkOAuthIdentity(
+  userId: string,
+  provider: AuthProvider,
+  providerId: string,
+  profile: { name: string; email?: string; avatarUrl?: string },
+): Promise<void> {
+  // Check if this provider+providerId is already linked to another user
+  const existingIdentity = await prisma.authIdentity.findUnique({
+    where: { provider_providerId: { provider, providerId } },
+  });
+
+  if (existingIdentity !== null) {
+    if (existingIdentity.userId === userId) {
+      // Already linked to the same user — idempotent success
+      return;
+    }
+    // Linked to a different user → block
+    throw new EmailInUseOtherMethodError();
+  }
+
+  // Create the new AuthIdentity linking this provider to the existing user
+  await prisma.authIdentity.create({
+    data: { userId, provider, providerId },
+  });
+
+  // Update legacy columns on the User if they're not set yet
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user !== null && user.provider === null) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        provider: provider as unknown as typeof user.provider,
+        providerId,
+        ...(profile.avatarUrl !== undefined && user.avatarUrl === null && { avatarUrl: profile.avatarUrl }),
+      },
+    });
+  }
+}
+
 export function setAuthCookies(res: Response, userId: string): void {
   const accessToken = signAccess(userId);
   const refreshToken = signRefresh(userId);

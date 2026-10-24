@@ -1,12 +1,12 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import DiscordStrategy from "passport-discord";
 import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
-import { signAccess, signRefresh, verifyLink } from "../../lib/jwt.js";
-import { upsertUser, EmailInUseOtherMethodError } from "./auth.service.js";
+import { signAccess, signRefresh, verifyLink, signOAuthState, verifyOAuthState, verifyToken } from "../../lib/jwt.js";
+import { upsertUser, linkOAuthIdentity, EmailInUseOtherMethodError } from "./auth.service.js";
 import { handleLogin, handleLogout, handleOAuthCallback, handleRefresh, handleRegister } from "./auth.controller.js";
 
 // ── Passport strategies ──────────────────────────────────────────────────────
@@ -17,10 +17,30 @@ passport.use(
       clientID: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       callbackURL: `${env.API_URL}/auth/google/callback`,
+      passReqToCallback: true,
     },
-    (_accessToken, _refreshToken, profile, done) => {
+    (req, _accessToken, _refreshToken, profile, done) => {
       const email = profile.emails?.[0]?.value;
       const avatarUrl = profile.photos?.[0]?.value;
+
+      // Link mode: attach provider identity to an existing authenticated user
+      if (req.linkUserId !== undefined) {
+        linkOAuthIdentity(req.linkUserId, "GOOGLE", profile.id, {
+          name: profile.displayName,
+          ...(email !== undefined && { email }),
+          ...(avatarUrl !== undefined && { avatarUrl }),
+        })
+          .then(() => done(null, { user: { id: req.linkUserId as string } as import("@prisma/client").User, isNew: false, linked: true, provider: "GOOGLE" } as unknown as Express.User))
+          .catch((err: unknown) => {
+            if (err instanceof EmailInUseOtherMethodError) {
+              done(null, { errorCode: err.code } as unknown as Express.User);
+              return;
+            }
+            done(err as Error);
+          });
+        return;
+      }
+
       upsertUser("GOOGLE", profile.id, {
         name: profile.displayName,
         ...(email !== undefined && { email }),
@@ -45,8 +65,9 @@ passport.use(
       clientSecret: env.DISCORD_CLIENT_SECRET,
       callbackURL: `${env.API_URL}/auth/discord/callback`,
       scope: ["identify", "email"],
+      passReqToCallback: true,
     },
-    (_accessToken, _refreshToken, profile, done) => {
+    (req, _accessToken, _refreshToken, profile, done) => {
       const avatar = profile.avatar;
       const avatarUrl =
         avatar !== null && avatar !== undefined && avatar.length > 0
@@ -54,6 +75,25 @@ passport.use(
           : undefined;
 
       const email = profile.email ?? undefined;
+
+      // Link mode: attach provider identity to an existing authenticated user
+      if (req.linkUserId !== undefined) {
+        linkOAuthIdentity(req.linkUserId, "DISCORD", profile.id, {
+          name: profile.username,
+          ...(email !== undefined && { email }),
+          ...(avatarUrl !== undefined && { avatarUrl }),
+        })
+          .then(() => done(null, { user: { id: req.linkUserId as string } as import("@prisma/client").User, isNew: false, linked: true, provider: "DISCORD" } as unknown as Express.User))
+          .catch((err: unknown) => {
+            if (err instanceof EmailInUseOtherMethodError) {
+              done(null, { errorCode: err.code } as unknown as Express.User);
+              return;
+            }
+            done(err as Error);
+          });
+        return;
+      }
+
       upsertUser("DISCORD", profile.id, {
         name: profile.username,
         ...(email !== undefined && { email }),
@@ -103,6 +143,23 @@ const loginRateLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// ── Link pre-middleware ───────────────────────────────────────────────────────
+// Decodes the OAuth state JWT (set during initiation in link mode) and attaches
+// req.linkUserId so the passport strategy callback can route accordingly.
+
+const decodeLinkState: RequestHandler = (req, _res, next) => {
+  const stateRaw = req.query["state"];
+  if (typeof stateRaw === "string" && stateRaw.length > 0) {
+    try {
+      const { userId } = verifyOAuthState(stateRaw);
+      req.linkUserId = userId;
+    } catch {
+      // Invalid / expired state — treat as a normal (non-link) callback
+    }
+  }
+  next();
+};
+
 // ── Router ───────────────────────────────────────────────────────────────────
 
 const router: IRouter = Router();
@@ -119,15 +176,33 @@ router.post("/auth/login", loginRateLimiter, (req, res, next) => {
 
 // ── OAuth routes ─────────────────────────────────────────────────────────────
 
-router.get(
-  "/auth/google",
-  oauthInitLimiter,
-  passport.authenticate("google", { session: false, scope: ["profile", "email"] }),
-);
+router.get("/auth/google", oauthInitLimiter, (req, res, next) => {
+  const isLink = req.query["link"] === "1";
+  if (isLink) {
+    // Verify the user is authenticated
+    const token = req.cookies["access_token"] as unknown;
+    if (typeof token !== "string" || token.length === 0) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Não autenticado." } });
+      return;
+    }
+    let userId: string;
+    try {
+      ({ userId } = verifyToken(token));
+    } catch {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token inválido." } });
+      return;
+    }
+    const state = signOAuthState(userId, "google");
+    passport.authenticate("google", { session: false, scope: ["profile", "email"], state })(req, res, next);
+    return;
+  }
+  passport.authenticate("google", { session: false, scope: ["profile", "email"] })(req, res, next);
+});
 
 router.get(
   "/auth/google/callback",
   oauthInitLimiter,
+  decodeLinkState,
   passport.authenticate("google", {
     session: false,
     failureRedirect: `${env.WEB_URL}/entrar`,
@@ -135,15 +210,32 @@ router.get(
   handleOAuthCallback,
 );
 
-router.get(
-  "/auth/discord",
-  oauthInitLimiter,
-  passport.authenticate("discord", { session: false }),
-);
+router.get("/auth/discord", oauthInitLimiter, (req, res, next) => {
+  const isLink = req.query["link"] === "1";
+  if (isLink) {
+    const token = req.cookies["access_token"] as unknown;
+    if (typeof token !== "string" || token.length === 0) {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Não autenticado." } });
+      return;
+    }
+    let userId: string;
+    try {
+      ({ userId } = verifyToken(token));
+    } catch {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token inválido." } });
+      return;
+    }
+    const state = signOAuthState(userId, "discord");
+    passport.authenticate("discord", { session: false, state })(req, res, next);
+    return;
+  }
+  passport.authenticate("discord", { session: false })(req, res, next);
+});
 
 router.get(
   "/auth/discord/callback",
   oauthInitLimiter,
+  decodeLinkState,
   passport.authenticate("discord", {
     session: false,
     failureRedirect: `${env.WEB_URL}/entrar`,

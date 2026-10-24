@@ -1,12 +1,32 @@
-import type { User } from "@prisma/client";
+import type { User, AuthProvider, AuthIdentity } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { uploadAvatar } from "../../lib/cloudinary.js";
 import { prisma } from "../../lib/prisma.js";
 import type { UpdateMeInput } from "@fut/shared";
 
-export async function getMe(userId: string): Promise<User> {
+export type UserWithConnections = User & {
+  authIdentities: AuthIdentity[];
+  connections: {
+    google: boolean;
+    discord: boolean;
+    password: boolean;
+  };
+};
+
+export async function getMe(userId: string): Promise<UserWithConnections> {
   try {
-    return await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { authIdentities: true },
+    });
+
+    const connections = {
+      google: user.authIdentities.some((i) => i.provider === "GOOGLE"),
+      discord: user.authIdentities.some((i) => i.provider === "DISCORD"),
+      password: user.passwordHash !== null,
+    };
+
+    return { ...user, connections };
   } catch (err) {
     if (
       err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -22,6 +42,44 @@ export async function getMe(userId: string): Promise<User> {
     }
     throw err;
   }
+}
+
+function makeAppError(
+  message: string,
+  code: string,
+  status: number,
+): Error & { code: string; status: number } {
+  const err = new Error(message) as Error & { code: string; status: number };
+  err.code = code;
+  err.status = status;
+  return err;
+}
+
+export async function deleteConnection(
+  userId: string,
+  provider: AuthProvider,
+): Promise<void> {
+  // Count how many login methods the user has
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: { authIdentities: true },
+  });
+
+  const identityCount = user.authIdentities.length;
+  const hasPassword = user.passwordHash !== null ? 1 : 0;
+  const totalMethods = identityCount + hasPassword;
+
+  if (totalMethods <= 1) {
+    throw makeAppError(
+      "Você não pode remover o único método de login",
+      "LAST_LOGIN_METHOD",
+      400,
+    );
+  }
+
+  await prisma.authIdentity.deleteMany({
+    where: { userId, provider },
+  });
 }
 
 export async function updateMe(userId: string, data: UpdateMeInput): Promise<User> {

@@ -20,7 +20,7 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
 
 export function handleOAuthCallback(req: Request, res: Response): void {
   const passportUser = req.user as
-    | { user: { id: string }; isNew: boolean }
+    | { user: { id: string }; isNew: boolean; linked?: boolean; provider?: string }
     | { errorCode: string }
     | undefined;
 
@@ -32,6 +32,13 @@ export function handleOAuthCallback(req: Request, res: Response): void {
   // EMAIL_IN_USE_OTHER_METHOD — email belongs to an existing account
   if ("errorCode" in passportUser) {
     res.redirect(`${env.WEB_URL}/entrar?error=${passportUser.errorCode}`);
+    return;
+  }
+
+  // Link mode — provider was connected to an existing account
+  if (passportUser.linked === true) {
+    const providerName = (passportUser.provider ?? "").toLowerCase();
+    res.redirect(`${env.WEB_URL}/perfil?linked=${providerName}`);
     return;
   }
 
