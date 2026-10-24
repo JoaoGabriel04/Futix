@@ -3,8 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Shuffle, Timer } from "lucide-react";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
