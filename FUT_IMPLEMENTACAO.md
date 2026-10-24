@@ -1,6 +1,13 @@
-# Fut: Plano de Implementação para o Claude Code
+# Futix: Plano de Implementação para o Claude Code
 
-Plataforma web para organizar um racha de futebol local e gratuito. Este documento é a fonte única de verdade. Leia inteiro antes de qualquer ação.
+Plataforma web para organizar um racha de futebol local e gratuito. O produto se chama **Futix** (nas versões antigas deste documento aparece como "Fut"). Este documento é a fonte única de verdade. Leia inteiro antes de qualquer ação.
+
+> ## ATUALIZAÇÃO v2: LEIA ANTES DO RESTO
+> Este documento recebeu uma atualização (seção 16) com **modo de sessão ao vivo**: botão "Iniciar sala", sorteio equilibrado por peso dos jogadores, partidas com cronômetro, gols e assistências, rodízio automático de times e resumo da sala.
+> 1. **Fases 0 a 6 já foram implementadas ou estão em fechamento. NÃO refaça nem reescreva nada delas.** Termine a Fase 6 e espere `APROVADO FASE 6` do humano antes de tocar em qualquer item da seção 16.
+> 2. A seção 16 diz exatamente o que **muda** em comportamentos já existentes (16.1) e o que é **novo** (16.2 em diante). Alterações em código existente ficam restritas ao que a seção 16.1 lista. Qualquer outra alteração em código já aprovado exige pedido ao humano.
+> 3. A antiga **Fase 7 (acabamento e deploy) agora é a Fase 15** e acontece por último. As novas fases são 7 a 11 (sessão ao vivo, seção 16) e 12 a 14 (marca, homepage, cadastro, login por e-mail e perfil, seção 17).
+> 4. A marca agora é **Futix** e a cor principal é o verde da logo (`#9EF224`, hover `#B6F65A`, pressed `#7DCC12`). Os tokens de acento (`accent/*`) usam esse verde no lugar do amarelo. Se isso ainda não foi aplicado, verifique com o humano antes de mexer.
 
 ---
 
@@ -80,7 +87,7 @@ Racha gratuito da comunidade (Grajaú, MA). Cerca de 16 jogadores de linha por j
 - Web: Vercel. API: Render. Banco: Neon (PostgreSQL). Imagens: Cloudinary.
 
 ### Decisões assumidas (humano pode revogar no portão da Fase 0)
-- Login **somente Google e Discord** (sem e-mail e senha).
+- ~~Login somente Google e Discord~~ **Revogado na v3:** o login tem três métodos (Google, Discord e e-mail com senha). Ver seção 17.
 - Hospedagem como listada acima.
 
 ---
@@ -293,8 +300,8 @@ Ajuste o schema se encontrar um problema real, mas **mostre a mudança no portã
 9. **Sair da sala:** o jogador pode sair enquanto a sala está `OPEN` ou `LOCKED`. Libera a vaga. O organizador não pode sair, precisa transferir ou cancelar a sala.
 10. **Co-organizadores:** o organizador nomeia até **2** por sala, entre membros `CONFIRMED`. Remover é permitido. Co-organizador aprova e recusa, mas **não** altera co-organizadores nem cancela a sala.
 11. **Alterar formato da partida** (vagas, jogadores por time): só organizador, só com sala `OPEN`. Não pode reduzir vagas abaixo do número de confirmados daquela função.
-12. **Travar sala:** impede novos pedidos e saídas livres. É pré-requisito para sortear. Organizador e co-organizadores podem travar e destravar.
-13. **Sorteio:**
+12. **Travar sala:** impede novos pedidos e saídas livres. É pré-requisito para sortear. Organizador e co-organizadores podem travar e destravar. **(ALTERADA NA v2: ver seção 16.1. "Iniciar sala" passa a travar e sortear no mesmo passo.)**
+13. **Sorteio (SUBSTITUÍDA NA v2 pelo sorteio equilibrado da seção 16.4; o texto abaixo vale só como histórico das Fases 0 a 6):**
     - exige sala `LOCKED`;
     - usa só jogadores de linha `CONFIRMED`;
     - número de times = `floor(confirmadosLinha / teamSize)`; embaralha com Fisher-Yates (`crypto.randomInt`) e distribui em ordem;
@@ -417,12 +424,76 @@ Formato de cada fase: **Objetivo, Tarefas, Critérios de aceite, Relatório do p
 **Relatório:** testes, prints, exemplo de sorteio com 16 e 18 jogadores.
 **PARE e espere `APROVADO FASE 6`.**
 
-### Fase 7: Acabamento e deploy
+### Fase 7: Pesos, regras da partida, "Iniciar sala" e sorteio equilibrado
+**Pré-requisito:** `APROVADO FASE 6`. Leia a seção 16 inteira.
+**Objetivo:** o organizador define o peso dos jogadores e as regras da partida, e inicia a sala, que trava e sorteia os times de forma equilibrada.
+**Tarefas:**
+1. Migrations **aditivas** (seção 16.2): `WeightLevel`, `PlayerWeight`, campos novos em `Room` e `DrawTeam`, `LIVE` em `RoomStatus`. Nenhuma coluna existente é removida ou renomeada.
+2. Schemas Zod e constantes em `/shared` (16.2 e 16.9).
+3. API de pesos e atualização do `PATCH /rooms/:id` (16.6). Garantir que **nenhum endpoint público ou de jogador retorne peso** (16.8).
+4. `POST /rooms/:id/start` e sorteio equilibrado (16.3 e 16.4), com ajuste de `POST /rooms/:id/draw` (16.1).
+5. Telas: 06c Gestão com "Iniciar sala", 06d Confirmar início, 07b Sorteio antes da partida (visão do organizador) com a visão do jogador sem pesos e sem botões, 06e Regras da partida, 13 Pesos dos jogadores (seção 16.10). Componentes novos: Peso Chip, SegmentedControl, BottomSheet.
+6. Remover da interface o botão e o switch "Travar sala" (os endpoints de lock e unlock continuam existindo, marcados como deprecated).
+**Critérios:** testes do sorteio (16.4) passando; peso nunca vaza para quem não é organizador ou co-organizador; sortear de novo só funciona em `DRAWN`; fluxos das Fases 0 a 6 continuam passando nos testes existentes.
+**Relatório do portão:** migrations, testes, prints mobile e desktop, exemplo de sorteio com 16 jogadores e com 18 jogadores (2 sem time).
+**PARE e espere `APROVADO FASE 7`.**
+
+### Fase 8: Motor de partida e rodízio (backend)
+**Objetivo:** partidas com cronômetro no servidor, gols, assistências, encerramento automático e rodízio de times.
+**Tarefas:** modelos `Match` e `MatchEvent`, campos de rodízio, endpoints e eventos Socket.IO da seção 16.6 e 16.7, regras das seções 16.5 e 16.5.1 (rodízio), recuperação de partidas ao reiniciar o servidor.
+**Critérios:** todas as regras R22 a R35 com teste; teste de rodízio com 3, 4 e 5 times, vitória, empate, limite de 2 vitórias e fila vazia; teste de concorrência (dois gols simultâneos não ultrapassam 2 gols nem registram partida encerrada).
+**Relatório:** matriz de transições de estado testada, tabela de exemplos de rodízio, resultado dos testes.
+**PARE e espere `APROVADO FASE 8`.**
+
+### Fase 9: Telas da partida ao vivo
+**Objetivo:** operar a partida pelo celular.
+**Tarefas:** telas 10 Partida ao vivo, 11 Registrar gol, 12 Fim da partida e trocas (seção 16.10), cronômetro no cliente calculado a partir de timestamps do servidor (16.7), atualização em tempo real para quem assiste (jogadores confirmados), botões Desfazer, Pausar, Encerrar partida e Iniciar próxima partida.
+**Critérios:** cronômetro não se desincroniza ao recarregar a página; jogador comum vê a partida mas não vê botões de controle nem pesos; gol contra credita o time certo; desfazer só atua em partida em andamento.
+**Relatório:** prints em 390 px e 1440 px, vídeo curto ou descrição de um fluxo completo (iniciar, gol, gol, fim, trocas, próxima).
+**PARE e espere `APROVADO FASE 9`.**
+
+### Fase 10: Encerrar sala e resumo
+**Objetivo:** fechar a sessão e mostrar estatísticas da sala.
+**Tarefas:** `POST /rooms/:id/finish`, `GET /rooms/:id/summary`, tela 14 Resumo da sala, compartilhar resumo (texto pronto para WhatsApp, via `navigator.share` com fallback de copiar).
+**Critérios:** regras R36 e R37 com teste; gol contra não conta como gol do jogador; artilharia e assistências batem com os eventos.
+**Relatório:** testes, prints, exemplo de resumo.
+**PARE e espere `APROVADO FASE 10`.**
+
+### Fase 11: Regressão e consistência
+**Objetivo:** garantir que nada antigo quebrou e que o sistema está coerente.
+**Tarefas:** rodar toda a suíte; auditar as telas das Fases 3 a 6 com os novos estados (`DRAWN`, `LIVE`, `FINISHED`); conferir permissões de co-organizador (16.8); atualizar README e este documento com o que foi de fato implementado.
+**Critérios:** nenhuma regressão; lista de divergências entre o que foi implementado e este documento, sem corrigir nada sem aprovação.
+**Relatório:** resultado da suíte, matriz de permissões final, divergências.
+**PARE e espere `APROVADO FASE 11`.**
+
+### Fase 12: Marca Futix e homepage pública
+**Pré-requisito:** `APROVADO FASE 11`. Leia a seção 17.
+**Objetivo:** identidade visual final e página inicial pública.
+**Tarefas:** logo e favicon (seção 17.6), rota `/` com a homepage (telas L1 e L2, seção 17.4), metadados de SEO e Open Graph, redirecionamento de usuário logado, tokens `accent/*` no verde da marca (se ainda não aplicados).
+**Critérios:** homepage fiel ao Figma em 390 px e 1440 px, sem chamadas de API, sem emojis, ícones só Lucide, Lighthouse de acessibilidade e SEO acima de 90.
+**Relatório:** prints, métricas do Lighthouse, lista de divergências com o Figma.
+**PARE e espere `APROVADO FASE 12`.**
+
+### Fase 13: Cadastro, login por e-mail e senha e contas
+**Objetivo:** os três métodos de login (Google, Discord, e-mail e senha) e a criação de conta.
+**Tarefas:** migrations aditivas da seção 17.2, endpoints 17.3 (registro, login, contas), telas Entrar mobile e desktop, Criar conta mobile e desktop, renomear a rota atual de completar perfil (seção 17.4), regras R38 a R44.
+**Critérios:** testes das regras R38 a R44; senha nunca em texto puro nem em log; mensagens de erro sem enumerar usuários; usuários antigos (login social) continuam entrando normalmente após a migration.
+**Relatório:** migrations, testes, prints, fluxo testado com os três métodos.
+**PARE e espere `APROVADO FASE 13`.**
+
+### Fase 14: Perfil e foto
+**Objetivo:** perfil bonito, edição de dados, troca e remoção de foto, contas conectadas.
+**Tarefas:** telas Perfil, Alterar foto, Editar perfil (mobile) e Perfil (desktop), upload e remoção de avatar (R45 a R47), conectar e desconectar contas, alterar ou criar senha (R42 e R43).
+**Critérios:** regras R45 a R47 com teste; trocar foto apaga a anterior no Cloudinary; avatar com iniciais quando não há foto; usuário não consegue remover o último método de login.
+**Relatório:** prints mobile e desktop, testes.
+**PARE e espere `APROVADO FASE 14`.**
+
+### Fase 15: Acabamento e deploy (antiga Fase 7)
 **Objetivo:** colocar no ar.
 **Tarefas:** revisão de acessibilidade e contraste, estados de erro e offline, mensagens de erro mapeadas para português, meta tags e favicon, deploy (Vercel, Render, Neon), variáveis de ambiente de produção, CORS e cookies de produção (domínios, `SameSite`, `Secure`), README com instruções.
 **Critérios:** fluxo completo funcionando em produção, em celular real; checklist de segurança da seção 11 cumprido.
 **Relatório:** URLs, checklist, pendências conhecidas.
-**PARE e espere `APROVADO FASE 7`.** Projeto concluído.
+**PARE e espere `APROVADO FASE 15`.** Projeto concluído.
 
 ---
 
@@ -471,7 +542,7 @@ NEXT_PUBLIC_SOCKET_URL=http://localhost:4000
 
 ## 13. Fora do escopo do MVP (não fazer)
 
-Pagamentos, notificações automáticas por WhatsApp, "time panela" ou balanceamento por nível, ranking e estatísticas de jogadores, chat, tema claro, app nativo, regra de reserva para sobras de times, promoção automática da lista de espera, login por e-mail e senha.
+Pagamentos, notificações automáticas por WhatsApp, "time panela" ou balanceamento por nível, ranking global e estatísticas históricas entre salas (o resumo **por sala** da Fase 10 é permitido), chat, tema claro, app nativo, regra de reserva para sobras de times, promoção automática da lista de espera, ~~login por e-mail e senha~~ (agora faz parte do escopo, seção 17), recuperação de senha por e-mail, verificação de e-mail e autenticação em dois fatores.
 
 ---
 
@@ -484,13 +555,445 @@ Pagamentos, notificações automáticas por WhatsApp, "time panela" ou balanceam
 - Datas sempre em UTC no banco e formatadas em `America/Sao_Paulo` na tela.
 - Commits pequenos e em inglês, um por tarefa concluída.
 - Cada regra da seção 7 deve ter pelo menos um teste nomeado com o número da regra.
-- **Tailwind v4 — namespace `--spacing-*`:** tokens de espaçamento e raio ficam **somente no `:root`** (ex.: `--space-lg`, `--radius-md`). **Nunca declará-los no `@theme` como `--spacing-xs`…`--spacing-3xl`**, pois o Tailwind v4 usa esse namespace para gerar *todas* as utilities de dimensão (`max-w-*`, `w-*`, `h-*`, `p-*`, `gap-*` etc.) — nomear `--spacing-2xl: 24px` faz `max-w-2xl` resolver para 24 px em vez de 42 rem. Nos componentes, referencie espaçamentos sempre como valores arbitrários: `px-[var(--space-lg)]`.
 
 ---
 
-## 15. Como começar
+## 15. Como começar (válido para o início do projeto; as Fases 0 a 6 já foram feitas. Para a atualização v2 siga a seção 16.12)
 
 1. Leia este documento inteiro.
 2. Confirme ao humano que entendeu, em **no máximo 10 linhas**, listando as decisões assumidas da seção 2.
 3. Apresente o **plano da Fase 0** e espere `APROVADO PLANO FASE 0`.
 4. Não escreva nada antes disso.
+
+---
+
+## 16. ATUALIZAÇÃO v2: SESSÃO AO VIVO (fases 7 a 11)
+
+Esta seção tem prioridade sobre qualquer trecho anterior que a contradiga. Tudo o que não está listado em 16.1 como "muda" continua exatamente como está.
+
+### 16.0 Resumo do fluxo novo
+
+1. Organizador ou co-organizador toca em **Iniciar sala**. A sala trava e os times são sorteados de forma equilibrada pelo peso dos jogadores. Status: `DRAWN`.
+2. Até iniciar a 1ª partida, ele pode **sortear de novo** quantas vezes quiser.
+3. Ao **iniciar a partida 1**, o sorteio fica bloqueado para sempre nesta sala. Status: `LIVE`.
+4. A partida tem cronômetro, placar, gols e assistências. Termina com **2 gols** ou ao fim do **tempo configurado**.
+5. Ao terminar, o sistema faz o **rodízio automático** (trocas de jogadores e fila de times). O organizador só inicia a próxima partida.
+6. No fim, **Encerrar sala** mostra o resumo (artilharia, assistências, partidas).
+
+### 16.1 O que MUDA no que já existe
+
+| Item existente | Mudança |
+|---|---|
+| Regra 12 (travar sala) | "Iniciar sala" passa a travar e sortear no mesmo passo. O botão e o switch "Travar sala" saem da interface. Os endpoints `POST /rooms/:id/lock` e `/unlock` **continuam funcionando** (deprecated), sem uso na interface. |
+| Regra 13 (sorteio) | Substituída pelo sorteio equilibrado (16.4). |
+| `RoomStatus` | Ganha o valor `LIVE`. Significados: `OPEN` aberta; `LOCKED` (legado, travada manualmente); `DRAWN` iniciada e sorteada, aguardando a partida 1; `LIVE` com partidas em andamento; `FINISHED` encerrada; `CANCELED` cancelada. |
+| `POST /rooms/:id/draw` | Só funciona em `DRAWN` (sortear de novo). Em `OPEN` ou `LOCKED` retorna `ROOM_NOT_STARTED`. Em `LIVE` ou `FINISHED` retorna `DRAW_LOCKED`. O primeiro sorteio passa a ser feito por `POST /rooms/:id/start`. |
+| Regra 3 (pedir entrada) | Em `DRAWN`, `LIVE` e `FINISHED` retorna `ROOM_STARTED`. |
+| Regra 9 (sair da sala) | Após `DRAWN` o jogador não pode mais sair pela plataforma (`LEAVE_BLOCKED`). Situações no meio da sessão são resolvidas em quadra (fora do escopo). |
+| Regras 4 e 8 (aprovar e promover) | Após `DRAWN`, aprovar, recusar e promover retornam `ROOM_STARTED`. Pedidos pendentes e a lista de espera ficam congelados e somente leitura. |
+| Regra 11 (alterar formato) | Formato (vagas, jogadores por time) continua só em `OPEN`. As **regras da partida** novas (16.4, R21) podem ser editadas em `OPEN`, `LOCKED` e `DRAWN`. |
+| Cancelar sala (regra 15) | Continua só do organizador, permitido em `OPEN`, `LOCKED` e `DRAWN`. Em `LIVE` retorna `ROOM_LIVE` (use "Encerrar sala"). |
+| Tela Sorteio (07) | Vira a 07b para organizador e co-organizador (com pesos e botões). Jogador comum vê os times, **sem pesos e sem botões**. |
+| Co-organizador | Pode iniciar sala, sortear de novo, operar partidas, editar pesos e encerrar sala. **Não** pode cancelar sala, nem editar formato e regras da partida, nem nomear co-organizadores (como já era). |
+
+Nada mais do código existente deve ser alterado. Se achar que algo mais precisa mudar, pare e peça aprovação.
+
+### 16.2 Modelo de dados (somente adições, via migration aditiva)
+
+```prisma
+enum WeightLevel   { REGULAR GOOD STAR }        // Regular, Bom, Craque
+enum WinnerRule    { ALWAYS MAX_2_WINS }        // Fica sempre | Até 2 vitórias seguidas
+enum MatchStatus   { LIVE PAUSED FINISHED }
+enum MatchEndReason { GOALS TIME MANUAL }
+enum MatchEventType { GOAL OWN_GOAL }
+
+// RoomStatus: acrescentar LIVE (os demais valores permanecem)
+
+// Room: novos campos, todos com default
+//   matchMinutes    Int        @default(10)
+//   winnerRule      WinnerRule @default(MAX_2_WINS)
+//   maxStarsPerTeam Int        @default(3)
+//   startedAt       DateTime?
+//   finishedAt      DateTime?
+//   matches         Match[]
+
+// DrawTeam: novos campos
+//   queuePosition   Int?            // null = em quadra; 1 = próximo da fila; n = última barreira
+//   consecutiveWins Int @default(0)
+
+model PlayerWeight {
+  id        String      @id @default(cuid())
+  ownerId   String      // organizador dono da sala (Room.ownerId)
+  playerId  String
+  level     WeightLevel @default(GOOD)
+  updatedAt DateTime    @updatedAt
+  owner     User @relation("WeightOwner", fields: [ownerId], references: [id])
+  player    User @relation("WeightPlayer", fields: [playerId], references: [id])
+  @@unique([ownerId, playerId])
+}
+
+model Match {
+  id             String         @id @default(cuid())
+  roomId         String
+  number         Int
+  teamAId        String         // DrawTeam
+  teamBId        String
+  teamAPlayerIds String[]       // escalação no início da partida
+  teamBPlayerIds String[]
+  limitSeconds   Int            // matchMinutes * 60 no início da partida
+  status         MatchStatus    @default(LIVE)
+  startedAt      DateTime       // início do trecho atual de contagem
+  elapsedSeconds Int            @default(0) // acumulado até a última pausa
+  scoreA         Int            @default(0)
+  scoreB         Int            @default(0)
+  winnerTeamId   String?        // null = empate (quando FINISHED)
+  endReason      MatchEndReason?
+  endedAt        DateTime?
+  createdById    String
+  events         MatchEvent[]
+  rotation       Rotation?
+  room           Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  @@unique([roomId, number])
+}
+
+model MatchEvent {
+  id          String         @id @default(cuid())
+  matchId     String
+  type        MatchEventType
+  teamId      String         // time que PONTUOU
+  scorerId    String?
+  assistId    String?
+  atSecond    Int            // segundo da partida em que ocorreu
+  undoneAt    DateTime?
+  createdById String
+  createdAt   DateTime       @default(now())
+  match       Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  @@index([matchId, undoneAt])
+}
+
+model Rotation {
+  id      String @id @default(cuid())
+  matchId String @unique
+  kind    String // "WIN" | "DRAW" | "WIN_LIMIT" | "NONE"
+  swaps   Json   // [{ teamId, withTeamId, outPlayerIds: [], inPlayerIds: [] }]
+  courtAfter Json // [teamId, teamId]
+  queueAfter Json // [teamId, ...] na ordem da fila
+  match   Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+```
+
+Observações:
+- Adicione os campos de relação inversa no `User` (`weightsGiven`, `weightsReceived`) e no `Room`.
+- **Não remova nem renomeie nada existente.** Mostre a migration no portão antes de aplicar.
+- Peso nunca é guardado em `RoomMember` nem em qualquer tabela retornada a jogadores.
+
+### 16.3 Iniciar sala
+
+**R17. Iniciar sala** (`POST /rooms/:id/start`):
+- Quem: organizador ou co-organizador. Pré-condição: status `OPEN` ou `LOCKED`.
+- Exige pelo menos `2 x teamSize` jogadores de linha `CONFIRMED`. Senão retorna `NOT_ENOUGH_PLAYERS` com a mensagem "São necessários pelo menos N jogadores de linha confirmados para iniciar".
+- Em uma **única transação**: trava a sala, executa o sorteio equilibrado (R18), cria o `Draw` e inicializa quadra e fila, define `startedAt` e muda o status para `DRAWN`.
+- Pedidos `PENDING` e lista de espera **não entram**. Se houver pedidos pendentes, o sheet de confirmação mostra uma linha extra: "N pedidos pendentes não entram nesta sala." (mesmo estilo das outras linhas do sheet).
+- Evento `room:started`.
+
+**R19. Sortear de novo** (`POST /rooms/:id/draw`): só em `DRAWN`. Cria um novo `Draw` com o mesmo algoritmo, reinicializa quadra e fila. O sorteio anterior fica guardado como histórico. O último `Draw` é o válido. Evento `room:redrawn`.
+
+### 16.4 Pesos e sorteio equilibrado
+
+**R20. Pesos:**
+- Três níveis: `REGULAR` (1), `GOOD` (2), `STAR` (3, "Craque"). Jogador sem peso definido vale `GOOD`.
+- O peso é do **organizador dono da sala** (`PlayerWeight.ownerId = room.ownerId`) e vale para as próximas salas dele. Organizador e co-organizadores editam e enxergam.
+- Edição em `OPEN`, `LOCKED` e `DRAWN`. Em `LIVE` e `FINISHED` retorna `WEIGHTS_LOCKED`.
+- Editar peso em `DRAWN` não altera times já sorteados. A tela mostra a dica "Sorteie de novo para aplicar os pesos".
+
+**R21. Regras da partida** (`PATCH /rooms/:id`, só organizador, em `OPEN`, `LOCKED` ou `DRAWN`):
+- `matchMinutes`: inteiro de 3 a 30 (padrão 10).
+- `winnerRule`: `ALWAYS` ou `MAX_2_WINS` (padrão `MAX_2_WINS`).
+- `maxStarsPerTeam`: inteiro de 1 a `teamSize` (padrão 3).
+- O número de gols para encerrar é **fixo em 2** (constante `GOALS_TO_WIN`, sem campo no banco e sem opção na tela).
+
+**R18. Sorteio equilibrado:**
+1. `n` = jogadores de linha `CONFIRMED`. `numTeams = floor(n / teamSize)`, no mínimo 2.
+2. Sobras `n - numTeams*teamSize`: escolhidas **ao acaso** (`crypto.randomInt`) e ficam em "Sem time" (lista informativa, **sem regra de reserva nem rodízio**, decisão em quadra).
+3. Para cada nível, na ordem `STAR`, `GOOD`, `REGULAR`: embaralhe os jogadores do nível e atribua cada um ao time que tiver **menos jogadores daquele nível** e ainda tiver vaga. Empate: menor soma de pesos. Novo empate: ao acaso.
+4. Limite `maxStarsPerTeam`: um time que já tem esse número de craques não recebe outro. Se for impossível cumprir (craques > `maxStarsPerTeam x numTeams`), relaxe o limite para `ceil(craques / numTeams)` e retorne `capRelaxed: true` (o organizador vê o aviso "Limite de craques por time relaxado").
+5. Embaralhe a ordem final dos times e nomeie "Time 1" a "Time N".
+6. Quadra inicial: Time 1 e Time 2 (`queuePosition = null`). Fila: Time 3 em diante, `queuePosition` 1, 2, 3...
+7. Resposta ao organizador inclui o peso total de cada time. Jogador comum **nunca** recebe pesos.
+
+**Testes obrigatórios do sorteio:** (a) todos os times com `teamSize` jogadores; (b) nenhum jogador repetido ou faltando; (c) por nível, a diferença entre quaisquer dois times é de no máximo 1; (d) limite de craques respeitado ou `capRelaxed`; (e) com 18 jogadores e `teamSize` 4: 4 times e 2 em "Sem time"; (f) em 1000 sorteios, cada jogador cai em cada time com frequência aproximadamente uniforme.
+
+### 16.5 Partida
+
+Quem opera (iniciar, pausar, gol, desfazer, encerrar): organizador e co-organizadores. Quem assiste: membros `CONFIRMED` da sala.
+
+**R22. Iniciar partida** (`POST /rooms/:id/matches`): status `DRAWN` ou `LIVE`, nenhuma partida `LIVE` ou `PAUSED` na sala, dois times em quadra. `number` = último + 1. Guarda a escalação dos dois times e `limitSeconds = matchMinutes x 60` (mudanças posteriores nas regras não afetam a partida em andamento). Se a sala estava em `DRAWN`, passa a `LIVE` (a partir daqui `DRAW_LOCKED`). Evento `match:started`.
+
+**R23. Cronômetro:** a verdade é o servidor. `elapsed = elapsedSeconds + (status == LIVE ? agora - startedAt : 0)`. O cliente calcula a partir de timestamps (16.7), sem tick por segundo.
+
+**R24. Gol** (`POST /matches/:id/goals` com `{ teamId, scorerId, assistId?, ownGoal? }`): só com a partida `LIVE` (`MATCH_PAUSED` se pausada). `teamId` é um dos dois times. `scorerId` é obrigatório e deve estar na escalação do `teamId`. `assistId` é opcional, da mesma escalação e diferente do autor. Placar do `teamId` +1. `atSecond` = `elapsed` no momento.
+
+**R25. Gol contra** (`ownGoal: true`): `teamId` é o time que **ganha o ponto**. `scorerId` é opcional e, se informado, deve estar na escalação do **outro** time. Não tem assistência e **não conta** como gol do jogador nas estatísticas.
+
+**R26. Consistência:** registrar gol, desfazer e encerrar rodam em transação com lock da partida. O placar é sempre recalculado a partir dos eventos não desfeitos (`undoneAt` nulo).
+
+**R27. Fim por gols:** quando um placar chega a `GOALS_TO_WIN` (2), a partida encerra na mesma transação. `endReason = GOALS`, vencedor é o time que chegou a 2.
+
+**R28. Fim por tempo:** quando `elapsed >= limitSeconds`, encerra. Maior placar vence. Placar igual é **empate** (`winnerTeamId = null`). `endReason = TIME`. O encerramento é **idempotente** e tem dupla garantia: (1) timer no processo da API (`setTimeout` pelo tempo restante, cancelado ao pausar ou encerrar e recriado ao retomar); (2) verificação preguiçosa em qualquer leitura ou escrita da partida. Ao subir o servidor, partidas `LIVE` são reavaliadas (expiradas encerram, as demais reagendam).
+
+**R29. Encerrar manualmente** (`POST /matches/:id/end`): resultado pelo placar atual, igual é empate. `endReason = MANUAL`. A tela pede confirmação.
+
+**R30. Pausar e retomar:** `LIVE -> PAUSED -> LIVE`. Ao pausar, `elapsedSeconds` recebe o acumulado. Ao retomar, `startedAt = agora`. Pausada não aceita gol.
+
+**R31. Desfazer** (`DELETE /matches/:id/goals/last`): marca `undoneAt` no evento mais recente ainda ativo e recalcula o placar. Só em partida `LIVE` ou `PAUSED`. **Partida encerrada não pode ser editada no MVP.**
+
+### 16.5.1 Rodízio automático (executa no mesmo instante em que a partida encerra, na mesma transação)
+
+Definições: "quadra" são os dois times com `queuePosition = null`. "Fila" são os demais times ordenados por `queuePosition` (1 é o próximo, `n` é a última barreira). Goleiros e jogadores "Sem time" **nunca** entram no rodízio. Se a fila estiver vazia (`n = 0`), não há rodízio (`kind = "NONE"`, os mesmos dois times jogam de novo).
+
+**R32. Houve vencedor e ele fica** (`ALWAYS`, ou `MAX_2_WINS` com menos de 2 vitórias seguidas):
+1. Vencedor: `consecutiveWins + 1`. Perdedor: `consecutiveWins = 0`.
+2. O perdedor troca **2 jogadores** com o time da **última barreira** (`Q_n`), conforme R35.
+3. `Q_1` (já com a troca, se ele era o `Q_n`) entra em quadra.
+4. O perdedor vai para o **fim da fila** (posição `n`). Os demais sobem uma posição.
+`kind = "WIN"`.
+
+**R33. Limite de vitórias** (`winnerRule = MAX_2_WINS`): se o vencedor chegar a `consecutiveWins >= 2`, ele **também sai**, e a partida é tratada como R34 (os dois times saem). `consecutiveWins` dos dois volta a 0. `kind = "WIN_LIMIT"`.
+
+**R34. Empate (ou saída dos dois times):** os dois times saem.
+- **`n >= 2`:** as duas últimas barreiras são `Q_(n-1)` e `Q_n`. Sorteie qual dos dois times que saem troca com qual. Cada um troca 2 jogadores (R35). Depois, `Q_1` e `Q_2` (já com as trocas) entram em quadra. A fila restante (`Q_3` em diante) sobe, e os dois times que saíram vão para o fim, em ordem sorteada.
+- **`n = 1`:** sorteie qual dos dois times fica em quadra. O outro troca 2 jogadores com `Q_1` (R35), que entra, e vai para a fila.
+`kind = "DRAW"` (ou `"WIN_LIMIT"` conforme R33).
+
+**R35. Escolha das trocas:**
+1. Do time que sai, sorteie 2 jogadores ao acaso (`crypto.randomInt`).
+2. No time parceiro, para cada um deles, escolha ao acaso um jogador **do mesmo nível de peso**. Se não houver, use o nível mais próximo (empate de proximidade: ao acaso). Os 2 escolhidos são diferentes.
+3. Se, depois da troca, algum dos dois times passar de `maxStarsPerTeam` craques, refaça o sorteio (até 20 tentativas). Se ainda assim passar, aceite (só pode acontecer com `capRelaxed`).
+4. Atualize `DrawTeam.playerIds` dos dois times e grave a `Rotation` com `swaps`, `courtAfter` e `queueAfter`.
+5. O organizador **não ajusta** as trocas no MVP. A tela 12 só mostra o resultado e libera "Iniciar partida N+1".
+
+**Exemplo (4 times, `ALWAYS`):** quadra T1 x T2, fila [T3, T4].
+- T1 vence. T2 troca 2 jogadores com T4 (a última), T3 entra. Quadra T1 x T3, fila [T4', T2'].
+- Empate em T1 x T3: `n = 2`, as duas últimas são T4' e T2'. Cada um dos dois que saem troca com um deles, T4'' e T2'' entram, fila [T1', T3'] em ordem sorteada.
+
+**Testes obrigatórios do rodízio:** vitória, empate, limite de 2 vitórias, `ALWAYS` com várias vitórias, `n = 0`, `n = 1` (empate), `n = 2`, `n = 3`, trocas por nível equivalente, nenhum jogador duplicado ou perdido depois de 20 partidas seguidas, `maxStarsPerTeam` respeitado.
+
+### 16.5.2 Encerrar sala e resumo
+
+**R36. Encerrar sala** (`POST /rooms/:id/finish`): organizador ou co-organizador, status `DRAWN` ou `LIVE`, sem partida `LIVE` ou `PAUSED` (`MATCH_IN_PROGRESS`). Status `FINISHED`, `finishedAt = agora`. Evento `room:finished`.
+
+**R37. Resumo** (`GET /rooms/:id/summary`, só `FINISHED`, para membros confirmados e organizadores): total de partidas, total de gols (incluindo gols contra), tempo total de jogo (soma de `elapsedSeconds`), artilharia e assistências (eventos não desfeitos, gol contra **excluído** do autor), partidas jogadas por jogador (pelas escalações guardadas), lista das partidas com placar. Ordene por quantidade e depois por nome.
+
+### 16.6 API nova (todas sob `/api`, resposta de erro no padrão da seção 8)
+
+Sala e sessão
+- `POST /rooms/:id/start` (R17)
+- `GET /rooms/:id/session`: estado atual (status, times com `queuePosition`, partida atual, última rotação). Pesos **só** para organizador e co-organizador.
+- `POST /rooms/:id/finish` (R36)
+- `GET /rooms/:id/summary` (R37)
+- `PATCH /rooms/:id`: passa a aceitar `matchMinutes`, `winnerRule`, `maxStarsPerTeam` (R21)
+
+Pesos (só organizador e co-organizador)
+- `GET /rooms/:id/weights`: lista dos membros `CONFIRMED` de linha com o nível.
+- `PUT /rooms/:id/weights` body `{ items: [{ playerId, level }] }` (em lote).
+
+Partidas
+- `POST /rooms/:id/matches` (R22)
+- `GET /rooms/:id/matches` e `GET /matches/:matchId`
+- `POST /matches/:id/pause`, `/resume`, `/end`
+- `POST /matches/:id/goals` e `DELETE /matches/:id/goals/last`
+
+Códigos de erro novos (estáveis): `NOT_ENOUGH_PLAYERS`, `ROOM_NOT_STARTED`, `ROOM_STARTED`, `ROOM_LIVE`, `DRAW_LOCKED`, `WEIGHTS_LOCKED`, `LEAVE_BLOCKED`, `MATCH_IN_PROGRESS`, `MATCH_NOT_FOUND`, `MATCH_PAUSED`, `MATCH_FINISHED`, `INVALID_SCORER`, `INVALID_ASSIST`.
+
+### 16.7 Tempo real e cronômetro
+
+- Mesma sala `room:{id}` da seção 9. Eventos novos: `room:started`, `room:redrawn`, `match:started`, `match:paused`, `match:resumed`, `match:goal`, `match:goal-undone`, `match:ended` (inclui a rotação), `room:finished`.
+- Todo evento de partida carrega `{ matchId, status, elapsedSeconds, startedAt, limitSeconds, serverNow, scoreA, scoreB }`.
+- O cliente calcula `offset = serverNow - Date.now()` uma vez e exibe `elapsedSeconds + (status === 'LIVE' ? (Date.now() + offset - startedAt) : 0)`. **Não há tick por segundo** vindo do servidor.
+- Como na seção 9, os dados continuam vindo do REST e o socket só avisa. Recarregar a página reconstrói o cronômetro pelo `GET /rooms/:id/session`.
+- **Nenhum evento carrega pesos.**
+
+### 16.8 Permissões e privacidade
+
+| Ação | Organizador | Co-organizador | Jogador confirmado | Outros |
+|---|---|---|---|---|
+| Iniciar sala, sortear de novo | sim | sim | não | não |
+| Ver e editar pesos | sim | sim | não | não |
+| Editar formato e regras da partida | sim | não | não | não |
+| Iniciar, pausar, encerrar partida, gol, desfazer | sim | sim | não | não |
+| Encerrar sala | sim | sim | não | não |
+| Cancelar sala | sim | não | não | não |
+| Ver times, partida ao vivo, resumo | sim | sim | sim | não |
+
+Regras de privacidade:
+- Pesos e soma de peso por time **jamais** aparecem em resposta, evento ou tela para quem não for organizador ou co-organizador da sala. Tenha um teste automatizado que chama todos os endpoints como jogador comum e falha se encontrar `level`, `weight` ou `weightTotal`.
+- Gol, assistência e escalações são visíveis para os membros confirmados.
+
+### 16.9 Constantes e validações compartilhadas (`/shared`)
+
+```ts
+export const GOALS_TO_WIN = 2;
+export const MATCH_MINUTES = { min: 3, max: 30, default: 10 };
+export const MAX_STARS_DEFAULT = 3;
+export const WEIGHT_VALUE = { REGULAR: 1, GOOD: 2, STAR: 3 } as const;
+export const WEIGHT_LABEL_PT = { REGULAR: 'Regular', GOOD: 'Bom', STAR: 'Craque' } as const;
+```
+Schemas Zod novos: `weightLevel`, `updateRoomRules`, `putWeights`, `createGoal`, `matchState`, `rotation`, `summary`.
+
+### 16.10 Mapa de telas novas (Figma, arquivo `0321OSdaqpTOfpi4Rh0Mec`, página Mobile)
+
+Leia cada nó com `get_design_context`. Textos e estrutura dos nós valem. Não invente.
+
+| Tela | Node | Rota ou uso |
+|---|---|---|
+| 06c Gestão com Iniciar sala | 32:321 | `/salas/[id]/gestao`. O botão aparece em `OPEN` ou `LOCKED`. Desabilitado, com dica, se faltar jogador. |
+| 06d Confirmar início | 32:399 | Bottom sheet sobre a gestão. |
+| 07b Sorteio antes da partida | 32:432 | `/salas/[id]/sorteio`. Visão do organizador. Jogador comum vê os times sem pesos e sem botões. |
+| 06e Regras da partida | 32:551 | `/salas/[id]/regras`. |
+| 13 Pesos dos jogadores | 33:604 | `/salas/[id]/pesos`. |
+| 10 Partida ao vivo | 33:396 | `/salas/[id]/partida`. |
+| 11 Registrar gol | 33:450 | Bottom sheet sobre a 10. |
+| 12 Fim da partida e trocas | 33:536 | Estado `FINISHED` da partida em `/salas/[id]/partida`. |
+| 14 Resumo da sala | 33:716 | `/salas/[id]/resumo`. |
+
+Componentes novos: **Peso Chip** (página Componentes do Figma, variantes `Nivel=Regular|Bom|Craque`), **SegmentedControl** (usado em 06e e 13), **BottomSheet** (06d e 11), **Scoreboard/Timer** (10). Reaproveite Button, Badge, Avatar, StepperRow, Switch, TabBar e AppHeader. Badge ganha o estado "Ao vivo" (fundo `status/danger-subtle`) usado no Match Card e na tela 10.
+
+Pontos de integração com telas existentes:
+- Tela Sala (05): mostra "Times sorteados" quando `DRAWN` e "Partida N ao vivo" quando `LIVE`, com link para as telas correspondentes.
+- Início e Partidas: o Match Card mostra o badge "Ao vivo" quando `LIVE`.
+- Desktop: não há layouts desenhados. Use o mesmo padrão do D2 (Sidebar, conteúdo na largura útil, duas colunas onde fizer sentido). Na tela ao vivo, coluna esquerda com cronômetro, placar e ações e coluna direita com lances e fila. **Nunca** um cartão estreito colado à esquerda. Mostre ao humano antes de fechar a fase.
+- Textos: use os do Figma, sem emojis, ícones só Lucide (`shuffle`, `swap`/`arrow-left-right`, `undo-2`, `pause`, `play`, `eye-off`, `lock`).
+
+### 16.11 Fora do escopo desta atualização (não fazer)
+
+Jogador ausente, lesionado ou que sai no meio da sessão; edição de partida já encerrada; tempo extra, gol de ouro e pênaltis; ajuste manual das trocas; estatísticas de goleiros; ranking global entre salas; notificações; desfazer de rodízio; transferência de papel de organizador durante a sessão.
+
+### 16.12 Como começar a atualização
+
+1. Termine a Fase 6 e espere `APROVADO FASE 6`.
+2. Confirme ao humano, em no máximo 10 linhas, que leu a seção 16 e liste as **três** ações que alteram código existente (16.1: sortear de novo só em `DRAWN`, remover "Travar sala" da interface, bloqueios após `DRAWN`).
+3. Apresente o plano da Fase 7 e espere `APROVADO PLANO FASE 7`.
+
+---
+
+## 17. ATUALIZAÇÃO v3: MARCA, HOMEPAGE, CADASTRO, LOGIN E PERFIL (fases 12 a 14)
+
+Esta seção só vale **depois** de `APROVADO FASE 11`. Mesma regra da v2: tudo o que não está em 17.1 como "muda" permanece como está, e nada fora da seção 17 é alterado sem pedir aprovação.
+
+### 17.1 O que MUDA no que já existe
+
+| Item existente | Mudança |
+|---|---|
+| Decisão da seção 2 (login só social) | Revogada. O login tem **3 métodos**: Google, Discord e e-mail com senha. |
+| Seção 13 (login por e-mail fora do escopo) | Removido do "fora do escopo". Recuperação de senha, verificação de e-mail e 2FA continuam fora. |
+| `User.provider` e `User.providerId` | Passam a ser **legado**. A identidade de login vai para a nova tabela `AuthIdentity` (17.2). As colunas antigas **não são removidas** nesta atualização. |
+| Rota `/cadastro` (hoje completar perfil) | Passa a ser `/cadastro/perfil`. A rota `/cadastro` vira a tela **Criar conta**. Os redirecionamentos de "perfil incompleto" apontam para `/cadastro/perfil`. |
+| Tela de perfil existente | Substituída pelo novo Perfil (17.4). |
+| Tela Entrar | Mantém os 3 métodos e ganha a versão desktop (painel da marca + formulário). |
+| `POST /me/avatar` | Passa a apagar o avatar anterior no Cloudinary ao trocar (R45). |
+| Cor principal | Verde da marca no lugar do amarelo (seção 16, nota do topo). |
+
+### 17.2 Modelo de dados (somente adições, migration aditiva)
+
+```prisma
+enum AuthProvider { GOOGLE DISCORD }
+
+model AuthIdentity {
+  id         String       @id @default(cuid())
+  userId     String
+  provider   AuthProvider
+  providerId String
+  createdAt  DateTime     @default(now())
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+// User: novos campos
+//   passwordHash   String?   // null = conta sem login por e-mail e senha
+//   avatarPublicId String?   // id do Cloudinary, para apagar ao trocar
+//   (email continua opcional na coluna, mas é obrigatório para contas criadas por e-mail e senha;
+//    criar índice único parcial em lower(email) quando não nulo)
+```
+
+- **Backfill obrigatório na mesma migration:** para cada `User` existente com `provider` e `providerId`, criar um `AuthIdentity` equivalente. Mostre a contagem antes e depois no relatório.
+- Se já existirem e-mails duplicados (ignorando maiúsculas e minúsculas), **pare e relate** antes de criar o índice único.
+- O código de login social passa a ler e gravar em `AuthIdentity`. As colunas antigas ficam intactas.
+
+### 17.3 Regras de autenticação (R38 a R44)
+
+**R38. Cadastro por e-mail** (`POST /auth/register` com `{ name, email, password }`): normaliza o e-mail (minúsculas, sem espaços nas pontas). Senha de 8 a 72 caracteres (limite do bcrypt), com pelo menos uma letra e um número (`WEAK_PASSWORD`). E-mail já existente retorna `EMAIL_TAKEN`. Cria o usuário com `passwordHash` (bcryptjs, custo 12) e inicia a sessão (cookie httpOnly, como no login social). Em seguida o front leva para `/cadastro/perfil`.
+
+**R39. Login por e-mail** (`POST /auth/login` com `{ email, password }`): erro único e genérico `INVALID_CREDENTIALS` ("E-mail ou senha incorretos") tanto para e-mail inexistente quanto para senha errada. Mesmo tempo de resposta aproximado nos dois casos (compare contra um hash falso quando o usuário não existir). Rate limit: 5 tentativas a cada 15 minutos por combinação de IP e e-mail.
+
+**R40. Login social:** continua como está, lendo `AuthIdentity`. Se o e-mail do provedor já pertencer a **outra conta** sem aquela identidade, **não vincule automaticamente** (evita tomada de conta). Retorne `EMAIL_IN_USE_OTHER_METHOD` com a mensagem "Esse e-mail já tem conta. Entre com o método original e conecte este em Perfil".
+
+**R41. Contas conectadas** (`GET /me` passa a retornar `connections: { google: boolean, discord: boolean, password: boolean }`): conectar Google ou Discord é um fluxo OAuth iniciado **logado** (`GET /auth/google?link=1`, idem Discord), com `state` assinado e ligado à sessão. Desconectar: `DELETE /me/connections/:provider`.
+
+**R42. Último método:** o usuário nunca pode ficar sem nenhum método de login. Remover o último retorna `LAST_LOGIN_METHOD`.
+
+**R43. Senha:** `POST /me/password`. Se a conta já tem senha, exige `currentPassword` e `newPassword`. Se a conta é só social (sem senha), `newPassword` basta e passa a habilitar o login por e-mail e senha **no e-mail da conta** (a conta precisa ter e-mail, senão `EMAIL_REQUIRED`). Mesmas regras de força de R38. Trocar a senha invalida as demais sessões (campo `sessionVersion` ou equivalente, **mostrar a abordagem no portão** antes de migrar).
+
+**R44. "Esqueci minha senha":** **não implementar** nesta atualização. O link aparece no Figma (desktop), mas no código fica **oculto** até existir envio de e-mail. Registre como pendência no relatório.
+
+### 17.3.1 Perfil e foto (R45 a R47)
+
+**R45. Trocar foto** (`POST /me/avatar`, multipart): aceita `image/jpeg`, `image/png`, `image/webp`, no máximo 2 MB, **validando o conteúdo e não só a extensão** (`INVALID_IMAGE`, `IMAGE_TOO_LARGE`). Envia ao Cloudinary com transformação quadrada (`c_fill,g_face,w_256,h_256`), salva `avatarUrl` e `avatarPublicId`, e **apaga a imagem anterior** do Cloudinary. No cliente, antes de enviar, recorte quadrado central e redução (canvas, até 512 px) para economizar dados no celular.
+
+**R46. Remover foto** (`DELETE /me/avatar`): apaga no Cloudinary, zera `avatarUrl` e `avatarPublicId`. A interface volta a mostrar as **iniciais** (componente Avatar existente).
+
+**R47. Editar perfil** (`PATCH /me`): nome (obrigatório, 2 a 80 caracteres), apelido (opcional, até 30), celular (opcional, formato brasileiro, validado), posição preferida (`Goleiro`, `Defensor`, `Meia`, `Atacante`, opcional). O celular continua visível **apenas** para organizador e co-organizadores das salas em que a pessoa está.
+
+Códigos de erro novos (estáveis): `EMAIL_TAKEN`, `INVALID_CREDENTIALS`, `WEAK_PASSWORD`, `EMAIL_IN_USE_OTHER_METHOD`, `LAST_LOGIN_METHOD`, `EMAIL_REQUIRED`, `INVALID_IMAGE`, `IMAGE_TOO_LARGE`, `INVALID_PHONE`.
+
+Biblioteca nova permitida (única): **`bcryptjs`** (em `/api`). Nenhuma outra sem aprovação.
+
+### 17.4 Mapa de telas (Figma, arquivo `0321OSdaqpTOfpi4Rh0Mec`)
+
+| Tela | Página | Node | Rota |
+|---|---|---|---|
+| L1 Landing desktop | Landing | 37:3 | `/` |
+| L2 Landing mobile | Landing | 37:202 | `/` |
+| 01 Entrar (mobile) | Mobile | 5:29 | `/entrar` |
+| D3 Entrar desktop | Desktop | 37:888 | `/entrar` |
+| 02a Criar conta (mobile) | Mobile | 39:423 | `/cadastro` |
+| D4 Criar conta desktop | Desktop | 40:860 | `/cadastro` |
+| 02b Completar perfil | Mobile | 11:168 | `/cadastro/perfil` |
+| 09 Perfil (mobile) | Mobile | 39:462 | `/perfil` |
+| 09b Alterar foto | Mobile | 39:586 | bottom sheet sobre `/perfil` |
+| 09c Editar perfil (mobile) | Mobile | 39:702 | `/perfil/editar` |
+| D5 Perfil desktop | Desktop | 40:950 | `/perfil` (edição na própria página) |
+
+Regras de interface:
+- Entrar e Criar conta no desktop: layout dividido, painel da marca à esquerda (some abaixo de `lg`) e formulário à direita. No mobile, tela única, como no Figma.
+- Perfil mobile: sheet "Foto de perfil" com Tirar foto (`<input type="file" accept="image/*" capture="user">`), Escolher da galeria, Remover foto e Cancelar. No desktop, "Alterar foto" abre o seletor de arquivos.
+- Perfil desktop: duas colunas na largura útil (cartão da pessoa à esquerda, dados e contas à direita). **Nunca** um cartão estreito colado à esquerda.
+- "Contas conectadas": Google e Discord mostram "Conectado" ou "Conectar". "E-mail e senha" mostra "Alterar senha" (ou "Criar senha" se a conta é só social).
+- Pop-ups e sheets seguem o componente BottomSheet já criado na Fase 7.
+- Textos: use os do Figma. Sem emojis. Ícones Lucide (`camera`, `image`, `trash-2`, `log-out`, `mail`, `pencil`).
+
+### 17.5 Homepage pública (`/`)
+
+- Página estática (SSG), sem chamadas de API, acessível sem login. Usuário logado que abre `/` é redirecionado para `/inicio`.
+- Seções, na ordem do Figma: navegação (logo, "Como funciona", "Recursos", "Para quem organiza", Entrar, Criar conta), hero com o celular de demonstração, "Do pedido ao apito final" (4 passos), "Tudo o que um racha precisa" (6 recursos), faixa final "Bora organizar o próximo racha?" e rodapé.
+- O celular do hero é um **componente de demonstração** montado com os componentes reais e dados fictícios (não é imagem). Os dois cartões flutuantes (placar ao vivo e pedido aprovado) também são estáticos.
+- Âncoras: "Como funciona" vai para `#como-funciona`, "Recursos" e "Para quem organiza" vão para `#recursos`. "Criar conta" leva a `/cadastro` e "Entrar" a `/entrar`.
+- SEO: `title` "Futix | Seu racha, organizado", `description` curta, Open Graph com a logo, `lang="pt-BR"`.
+- Responsivo: layout de 390 px (L2) até 1440 px (L1), com os 4 passos e os 6 recursos em colunas no desktop e empilhados no mobile.
+
+### 17.6 Marca
+
+- Nome do produto: **Futix**. Substituir "Fut" nos textos visíveis, no `<title>` e no manifest.
+- A logo está no Figma no node `25:312` (página Mobile). Exporte em PNG e SVG se possível, salve em `web/public/` e gere o favicon a partir dela.
+- Cor da marca: `#9EF224` (padrão), `#B6F65A` (hover), `#7DCC12` (pressed). Texto sobre a cor da marca usa o tom escuro `text/on-accent`.
+- Os nomes técnicos do repositório (pastas, pacote) **não precisam** mudar.
+
+### 17.7 Fora do escopo desta atualização
+
+Recuperação de senha, verificação de e-mail, autenticação em dois fatores, exclusão de conta, troca de e-mail, login com outros provedores, edição de perfil de outra pessoa, estatísticas pessoais entre salas.
+
+### 17.8 Como começar a atualização v3
+
+1. Só depois de `APROVADO FASE 11`.
+2. Confirme ao humano, em no máximo 10 linhas, que leu a seção 17 e liste as alterações em código existente (17.1).
+3. Apresente o plano da Fase 12 e espere `APROVADO PLANO FASE 12`.
