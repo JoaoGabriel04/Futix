@@ -259,7 +259,7 @@ export function PerfilClient() {
               </span>
             ) : (
               <a
-                href={`${apiUrl}/auth/google`}
+                href={`${apiUrl}/auth/google?link=1`}
                 className="text-[13px] font-semibold text-accent-default"
               >
                 Conectar
@@ -278,7 +278,7 @@ export function PerfilClient() {
               </span>
             ) : (
               <a
-                href={`${apiUrl}/auth/discord`}
+                href={`${apiUrl}/auth/discord?link=1`}
                 className="text-[13px] font-semibold text-accent-default"
               >
                 Conectar
@@ -295,7 +295,7 @@ export function PerfilClient() {
               href="/perfil/editar"
               className="text-[13px] font-semibold text-accent-default"
             >
-              Alterar senha
+              {user?.connections?.password ? "Alterar senha" : "Criar senha"}
             </Link>
           </div>
         </div>
@@ -474,7 +474,7 @@ export function PerfilClient() {
                   </span>
                 ) : (
                   <a
-                    href={`${apiUrl}/auth/google`}
+                    href={`${apiUrl}/auth/google?link=1`}
                     className="text-[13px] font-semibold text-accent-default"
                   >
                     Conectar
@@ -494,7 +494,7 @@ export function PerfilClient() {
                   </span>
                 ) : (
                   <a
-                    href={`${apiUrl}/auth/discord`}
+                    href={`${apiUrl}/auth/discord?link=1`}
                     className="text-[13px] font-semibold text-accent-default"
                   >
                     Conectar
@@ -512,7 +512,7 @@ export function PerfilClient() {
                   href="/perfil/editar"
                   className="text-[13px] font-semibold text-accent-default"
                 >
-                  Alterar senha
+                  {user?.connections?.password ? "Alterar senha" : "Criar senha"}
                 </Link>
               </div>
             </div>
