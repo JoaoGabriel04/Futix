@@ -82,12 +82,10 @@ export async function resolveOAuthIdentity(
   }
 
   // 3. No conflict — create new User + AuthIdentity
-  // Legacy provider string (lowercase) for backward-compat columns
-  const legacyProvider = provider.toLowerCase() as Provider;
-
+  // AuthProvider enum values (GOOGLE/DISCORD) match the legacy Provider enum
   const created = await prisma.user.create({
     data: {
-      provider: legacyProvider,
+      provider: provider as unknown as Provider,
       providerId,
       name: profile.name,
       email: profile.email ?? null,
