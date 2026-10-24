@@ -126,6 +126,7 @@ export default function CadastroPage() {
     .join("");
 
   return (
+    <div className="min-h-screen flex items-center justify-center px-[var(--space-lg)]">
     <div className="bg-bg-surface rounded-[var(--radius-lg)] p-[var(--space-3xl)] flex flex-col gap-[var(--space-xl)] w-full max-w-[390px]">
       <div className="flex flex-col gap-[var(--space-xs)]">
         <h1 className="text-display-h1 text-text-primary">Complete seu perfil</h1>
@@ -213,6 +214,7 @@ export default function CadastroPage() {
           {isSubmitting ? "Salvando..." : "Salvar e entrar"}
         </Button>
       </form>
+    </div>
     </div>
   );
 }
