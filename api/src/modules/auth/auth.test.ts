@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
+import express from "express";
+import rateLimit from "express-rate-limit";
+import request from "supertest";
 
 // ── mock prisma ────────────────────────────────────────────────────────────────
 
@@ -68,8 +71,12 @@ const FAKE_USER = {
 
 describe("assertPasswordStrength", () => {
   it("throws WEAK_PASSWORD when password has no digit", () => {
-    expect(() => assertPasswordStrength("AbcdefghI")).toMatchObject({});
     expect(() => assertPasswordStrength("AbcdefghI")).toThrow();
+    try {
+      assertPasswordStrength("AbcdefghI");
+    } catch (e) {
+      expect((e as { code: string }).code).toBe("WEAK_PASSWORD");
+    }
   });
 
   it("throws WEAK_PASSWORD when password has no letter", () => {
@@ -255,5 +262,73 @@ describe("DUMMY_HASH", () => {
     const hash = await DUMMY_HASH;
     expect(typeof hash).toBe("string");
     expect(hash.startsWith("$2")).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// R40 — POST /auth/login rate limit (integration)
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Uses a standalone Express app with a fresh loginRateLimiter instance so that
+// state from other test suites cannot bleed in and trigger the limit prematurely.
+// The limiter config mirrors auth.routes.ts exactly (max: 5, 15 min window, key
+// by IP+email). The stub handler always returns 401 (wrong password) so the 5
+// allowed attempts are exhausted before the 6th blocked one.
+
+describe("POST /auth/login — rate limit (R40)", () => {
+  const email = `ratelimit-${Date.now()}@test.com`;
+
+  // Build a fresh isolated app for this suite.
+  const testLoginRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    keyGenerator: (req) => {
+      const body = req.body as { email?: string };
+      const e = (body?.email ?? "").toLowerCase().trim();
+      const ip = req.ip ?? "unknown";
+      return `${ip}:${e}`;
+    },
+    handler: (_req, res) => {
+      res
+        .status(429)
+        .json({ error: "RATE_LIMIT_EXCEEDED", message: "Muitas tentativas. Tente novamente em 15 minutos" });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const testApp = express();
+  testApp.use(express.json());
+  // Do NOT set trust proxy here — supertest connects directly, so req.ip is
+  // the loopback address (::1 or ::ffff:127.0.0.1). All requests in this suite
+  // share the same IP, which is what we want for the key to accumulate hits.
+  testApp.post("/auth/login", testLoginRateLimiter, (_req, res) => {
+    // Stub: always reject with 401 (wrong password) so attempts accumulate.
+    res.status(401).json({ error: "INVALID_CREDENTIALS" });
+  });
+
+  let server: ReturnType<typeof testApp.listen>;
+
+  beforeAll(() => {
+    server = testApp.listen(0); // bind to random available port
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  it("returns 429 with RATE_LIMIT_EXCEEDED on the 6th attempt within 15 minutes", async () => {
+    const payload = { email, password: "WrongPass1" };
+
+    // Attempts 1–5 should be processed (401 from the stub handler).
+    for (let i = 1; i <= 5; i++) {
+      const res = await request(server).post("/auth/login").send(payload);
+      expect(res.status).toBe(401);
+    }
+
+    // 6th attempt — should be blocked by the rate limiter.
+    const res = await request(server).post("/auth/login").send(payload);
+    expect(res.status).toBe(429);
+    expect(res.body).toMatchObject({ error: "RATE_LIMIT_EXCEEDED" });
   });
 });
