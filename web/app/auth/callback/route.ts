@@ -21,7 +21,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       isNew: boolean;
     };
 
-    const destination = isNew ? "/cadastro" : "/inicio";
+    const destination = isNew ? "/cadastro/perfil" : "/inicio";
     const response = NextResponse.redirect(new URL(destination, request.url));
     response.cookies.set("access_token", accessToken, { ...COOKIE_OPTS, maxAge: 900 });
     response.cookies.set("refresh_token", refreshToken, { ...COOKIE_OPTS, maxAge: 2_592_000 });
