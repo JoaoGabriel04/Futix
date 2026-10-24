@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Shield, Shuffle, Timer } from "lucide-react";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -14,11 +15,44 @@ const FEATURES = [
 ];
 
 export default function EntrarPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (response.ok) {
+        router.push("/inicio");
+        return;
+      }
+
+      const data = await response.json();
+
+      if (response.status === 401 && data.code === "INVALID_CREDENTIALS") {
+        setError("E-mail ou senha incorretos");
+      } else if (response.status === 429) {
+        setError("Muitas tentativas. Tente novamente em 15 minutos.");
+      } else {
+        setError("Ocorreu um erro. Tente novamente.");
+      }
+    } catch {
+      setError("Ocorreu um erro. Tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -144,7 +178,10 @@ export default function EntrarPage() {
                   placeholder="voce@email.com"
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError(null);
+                  }}
                   className="h-[52px] w-full rounded-[var(--radius-md)] border border-border-default bg-bg-surface px-[var(--space-lg)] text-[15px] leading-[22px] text-text-primary placeholder:text-text-muted outline-none focus:border-accent-default"
                 />
               </div>
@@ -157,7 +194,10 @@ export default function EntrarPage() {
                   placeholder="Sua senha"
                   autoComplete="current-password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
                   className="h-[52px] w-full rounded-[var(--radius-md)] border border-border-default bg-bg-surface px-[var(--space-lg)] text-[15px] leading-[22px] text-text-primary placeholder:text-text-muted outline-none focus:border-accent-default"
                 />
               </div>
@@ -173,12 +213,20 @@ export default function EntrarPage() {
               </button>
             </div>
 
+            {/* Error message */}
+            {error && (
+              <span className="text-[13px] leading-[18px] text-status-danger">
+                {error}
+              </span>
+            )}
+
             {/* Submit */}
             <button
               type="submit"
-              className="h-[52px] w-full rounded-[var(--radius-md)] bg-accent-default text-[15px] font-semibold leading-[22px] text-text-on-accent"
+              disabled={loading}
+              className="h-[52px] w-full rounded-[var(--radius-md)] bg-accent-default text-[15px] font-semibold leading-[22px] text-text-on-accent disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Entrar
+              {loading ? "Entrando..." : "Entrar"}
             </button>
 
             {/* Divider */}
