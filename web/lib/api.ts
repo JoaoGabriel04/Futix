@@ -32,9 +32,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // On 401, try to refresh the session once then retry the original request.
   // Guard against infinite loop by never refreshing the refresh endpoint itself.
   if (res.status === 401 && path !== "/auth/refresh") {
-    const refreshRes = await fetch(`${base}/auth/refresh`, {
+    const refreshRes = await fetch(`/api/auth/refresh`, {
       method: "POST",
-      credentials: "include",
     });
 
     if (refreshRes.ok) {

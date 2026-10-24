@@ -5,6 +5,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import DiscordStrategy from "passport-discord";
 import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
+import { signAccess, signRefresh, verifyLink } from "../../lib/jwt.js";
 import { upsertUser } from "./auth.service.js";
 import { handleLogout, handleOAuthCallback, handleRefresh } from "./auth.controller.js";
 
@@ -106,6 +107,22 @@ router.get(
   }),
   handleOAuthCallback,
 );
+
+router.get("/auth/exchange", (req, res) => {
+  const t = req.query["t"];
+  if (typeof t !== "string" || t.length === 0) {
+    res.status(400).json({ error: { code: "BAD_REQUEST", message: "Token ausente." } });
+    return;
+  }
+  try {
+    const { userId, isNew } = verifyLink(t);
+    const accessToken = signAccess(userId);
+    const refreshToken = signRefresh(userId);
+    res.json({ accessToken, refreshToken, isNew });
+  } catch {
+    res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Link inválido ou expirado." } });
+  }
+});
 
 router.post("/auth/refresh", handleRefresh);
 router.post("/auth/logout", requireAuth, handleLogout);

@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
 import { env } from "../../env.js";
-import { verifyToken } from "../../lib/jwt.js";
-import { clearAuthCookies, setAuthCookies } from "./auth.service.js";
+import { signAccess, signLink, signRefresh, verifyToken } from "../../lib/jwt.js";
 
 export function handleOAuthCallback(req: Request, res: Response): void {
   const passportUser = req.user;
@@ -12,11 +11,8 @@ export function handleOAuthCallback(req: Request, res: Response): void {
   }
 
   const { user, isNew } = passportUser;
-
-  setAuthCookies(res, user.id);
-
-  const destination = isNew ? `${env.WEB_URL}/cadastro` : `${env.WEB_URL}/inicio`;
-  res.redirect(destination);
+  const linkToken = signLink(user.id, isNew);
+  res.redirect(`${env.WEB_URL}/auth/callback?t=${linkToken}`);
 }
 
 export function handleRefresh(req: Request, res: Response): void {
@@ -29,15 +25,14 @@ export function handleRefresh(req: Request, res: Response): void {
 
   try {
     const { userId } = verifyToken(refreshToken);
-    setAuthCookies(res, userId);
-    res.status(200).json({ ok: true });
+    const accessToken = signAccess(userId);
+    const newRefreshToken = signRefresh(userId);
+    res.json({ accessToken, refreshToken: newRefreshToken });
   } catch {
-    clearAuthCookies(res);
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Sessão expirada." } });
   }
 }
 
 export function handleLogout(_req: Request, res: Response): void {
-  clearAuthCookies(res);
   res.status(204).end();
 }

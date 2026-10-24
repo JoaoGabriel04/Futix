@@ -116,7 +116,7 @@ export default function PerfilPage() {
 
   async function handleLogout() {
     try {
-      await apiFetch<unknown>("/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // continue to clear cache and redirect even on error
     }
