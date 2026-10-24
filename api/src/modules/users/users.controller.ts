@@ -25,9 +25,11 @@ export async function updateMeHandler(
 ): Promise<void> {
   const parsed = updateMeSchema.safeParse(req.body);
   if (!parsed.success) {
+    const errors = parsed.error.flatten().fieldErrors;
+    const code = errors["phone"] ? "INVALID_PHONE" : "VALIDATION_ERROR";
     res.status(400).json({
       error: {
-        code: "VALIDATION_ERROR",
+        code,
         message: "Dados inválidos.",
         details: parsed.error.flatten(),
       },
