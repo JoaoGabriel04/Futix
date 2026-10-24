@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { User } from "@prisma/client";
+import type { User, AuthProvider } from "@prisma/client";
 import type { Response } from "express";
 import { env } from "../../env.js";
 import { signAccess, signRefresh } from "../../lib/jwt.js";
@@ -24,30 +24,111 @@ function cookieOptions(maxAge: number): {
   };
 }
 
+// ── OAuth identity resolution ─────────────────────────────────────────────────
+
+export class EmailInUseOtherMethodError extends Error {
+  readonly code = "EMAIL_IN_USE_OTHER_METHOD";
+  readonly status = 409;
+
+  constructor() {
+    super(
+      "Esse e-mail já tem conta. Entre com o método original e conecte este em Perfil",
+    );
+    this.name = "EmailInUseOtherMethodError";
+  }
+}
+
+/**
+ * R40 — Resolve an OAuth identity against AuthIdentity records.
+ *
+ * Pure business-logic function (no HTTP concerns) — takes the OAuth profile
+ * data and returns the matching User, creating it if needed.
+ *
+ * Throws `EmailInUseOtherMethodError` when the email belongs to an existing
+ * user that does NOT yet have this specific AuthIdentity (prevents account
+ * takeover via social login with a known e-mail).
+ */
+export async function resolveOAuthIdentity(
+  provider: AuthProvider,
+  providerId: string,
+  profile: { name: string; email?: string; avatarUrl?: string },
+): Promise<{ user: User; isNew: boolean }> {
+  // 1. Check if an AuthIdentity already exists for this provider+providerId
+  const identity = await prisma.authIdentity.findUnique({
+    where: { provider_providerId: { provider, providerId } },
+    include: { user: true },
+  });
+
+  if (identity !== null) {
+    // Happy path: returning user with this social login
+    return { user: identity.user, isNew: false };
+  }
+
+  // 2. AuthIdentity not found — check if email is already in use
+  if (profile.email !== undefined) {
+    const existingUser = await prisma.user.findFirst({
+      where: { email: { equals: profile.email, mode: "insensitive" } },
+      include: { authIdentities: { where: { provider, providerId } } },
+    });
+
+    if (existingUser !== null) {
+      if (existingUser.authIdentities.length > 0) {
+        // Race condition: identity was created between our two queries — treat as success
+        return { user: existingUser, isNew: false };
+      }
+      // Email belongs to another account without this identity → block
+      throw new EmailInUseOtherMethodError();
+    }
+  }
+
+  // 3. No conflict — create new User + AuthIdentity
+  // Legacy provider string (lowercase) for backward-compat columns
+  const legacyProvider = provider.toLowerCase() as Provider;
+
+  const created = await prisma.user.create({
+    data: {
+      provider: legacyProvider,
+      providerId,
+      name: profile.name,
+      email: profile.email ?? null,
+      avatarUrl: profile.avatarUrl ?? null,
+      authIdentities: {
+        create: { provider, providerId },
+      },
+    },
+  });
+
+  return { user: created, isNew: true };
+}
+
+/**
+ * Wraps `resolveOAuthIdentity` with the legacy `Provider` string type used
+ * by the Passport strategy callbacks in auth.routes.ts.
+ * Also updates the legacy `provider`/`providerId` columns on the User when the
+ * user already existed via AuthIdentity (first-time migration path).
+ */
 export async function upsertUser(
   provider: Provider,
   providerId: string,
   profile: { name: string; email?: string; avatarUrl?: string },
 ): Promise<{ user: User; isNew: boolean }> {
-  const existing = await prisma.user.findUnique({
-    where: { provider_providerId: { provider, providerId } },
-  });
+  // Provider enum values are identical in both the legacy Provider and
+  // AuthProvider enums (GOOGLE / DISCORD), so the cast is safe.
+  const authProvider = provider as AuthProvider;
+  const result = await resolveOAuthIdentity(authProvider, providerId, profile);
 
-  if (existing !== null) {
-    return { user: existing, isNew: false };
+  // Keep legacy columns in sync when the user was pre-existing and they differ
+  if (
+    !result.isNew &&
+    (result.user.provider !== provider || result.user.providerId !== providerId)
+  ) {
+    await prisma.user.update({
+      where: { id: result.user.id },
+      data: { provider, providerId },
+    });
   }
 
-  const created = await prisma.user.create({
-    data: {
-      provider,
-      providerId,
-      name: profile.name,
-      email: profile.email ?? null,
-      avatarUrl: profile.avatarUrl ?? null,
-    },
-  });
-
-  return { user: created, isNew: true };
+  return result;
 }
 
 export function setAuthCookies(res: Response, userId: string): void {

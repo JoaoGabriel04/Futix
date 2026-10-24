@@ -19,10 +19,19 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
 }
 
 export function handleOAuthCallback(req: Request, res: Response): void {
-  const passportUser = req.user;
+  const passportUser = req.user as
+    | { user: { id: string }; isNew: boolean }
+    | { errorCode: string }
+    | undefined;
 
   if (!passportUser) {
     res.redirect(`${env.WEB_URL}/entrar`);
+    return;
+  }
+
+  // EMAIL_IN_USE_OTHER_METHOD — email belongs to an existing account
+  if ("errorCode" in passportUser) {
+    res.redirect(`${env.WEB_URL}/entrar?error=${passportUser.errorCode}`);
     return;
   }
 

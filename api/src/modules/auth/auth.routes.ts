@@ -6,7 +6,7 @@ import DiscordStrategy from "passport-discord";
 import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { signAccess, signRefresh, verifyLink } from "../../lib/jwt.js";
-import { upsertUser } from "./auth.service.js";
+import { upsertUser, EmailInUseOtherMethodError } from "./auth.service.js";
 import { handleLogin, handleLogout, handleOAuthCallback, handleRefresh, handleRegister } from "./auth.controller.js";
 
 // ── Passport strategies ──────────────────────────────────────────────────────
@@ -27,7 +27,13 @@ passport.use(
         ...(avatarUrl !== undefined && { avatarUrl }),
       })
         .then((result) => done(null, result))
-        .catch((err: unknown) => done(err as Error));
+        .catch((err: unknown) => {
+          if (err instanceof EmailInUseOtherMethodError) {
+            done(null, { errorCode: err.code } as unknown as Express.User);
+            return;
+          }
+          done(err as Error);
+        });
     },
   ),
 );
@@ -54,7 +60,13 @@ passport.use(
         ...(avatarUrl !== undefined && { avatarUrl }),
       })
         .then((result) => done(null, result))
-        .catch((err: unknown) => done(err as Error));
+        .catch((err: unknown) => {
+          if (err instanceof EmailInUseOtherMethodError) {
+            done(null, { errorCode: err.code } as unknown as Express.User);
+            return;
+          }
+          done(err as Error);
+        });
     },
   ),
 );

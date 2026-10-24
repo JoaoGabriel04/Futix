@@ -10,6 +10,10 @@ const { prismaMock } = vi.hoisted(() => {
     user: {
       findFirst: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+    },
+    authIdentity: {
+      findUnique: vi.fn(),
     },
   };
   return { prismaMock };
@@ -45,6 +49,8 @@ import {
   loginWithEmail,
   assertPasswordStrength,
   DUMMY_HASH,
+  resolveOAuthIdentity,
+  EmailInUseOtherMethodError,
 } from "./auth.service.js";
 
 // ── fixtures ──────────────────────────────────────────────────────────────────
@@ -63,6 +69,15 @@ const FAKE_USER = {
   avatarPublicId: null,
   createdAt: new Date(),
   authIdentities: [],
+};
+
+const FAKE_GOOGLE_IDENTITY = {
+  id: "identity-google-1",
+  userId: "user-abc",
+  provider: "GOOGLE" as const,
+  providerId: "google-123",
+  createdAt: new Date(),
+  user: FAKE_USER,
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -263,6 +278,159 @@ describe("DUMMY_HASH", () => {
     const hash = await DUMMY_HASH;
     expect(typeof hash).toBe("string");
     expect(hash.startsWith("$2")).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// R40 — resolveOAuthIdentity (social login via AuthIdentity)
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("resolveOAuthIdentity — R40", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // ── Google: new providerId, no existing user ──────────────────────────────
+
+  it("Google — new providerId (no existing user): creates User + AuthIdentity", async () => {
+    prismaMock.authIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue(FAKE_USER);
+
+    const result = await resolveOAuthIdentity("GOOGLE", "google-new-999", {
+      name: "New User",
+      email: "newuser@example.com",
+    });
+
+    expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
+    // authIdentities nested create should be included
+    expect(prismaMock.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          authIdentities: expect.objectContaining({ create: expect.any(Object) }),
+        }),
+      }),
+    );
+    expect(result.isNew).toBe(true);
+    expect(result.user).toMatchObject({ id: "user-abc" });
+  });
+
+  // ── Google: existing AuthIdentity → return user ───────────────────────────
+
+  it("Google — existing providerId: finds User via AuthIdentity", async () => {
+    prismaMock.authIdentity.findUnique.mockResolvedValue(FAKE_GOOGLE_IDENTITY);
+
+    const result = await resolveOAuthIdentity("GOOGLE", "google-123", {
+      name: "João Silva",
+      email: "joao@example.com",
+    });
+
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+    expect(prismaMock.user.findFirst).not.toHaveBeenCalled();
+    expect(result.isNew).toBe(false);
+    expect(result.user).toMatchObject({ id: "user-abc" });
+  });
+
+  // ── Google: email of existing user without that AuthIdentity → error ───────
+
+  it("Google — email belongs to existing user without this AuthIdentity: throws EMAIL_IN_USE_OTHER_METHOD", async () => {
+    prismaMock.authIdentity.findUnique.mockResolvedValue(null);
+    // User with this email exists but has NO matching authIdentity
+    prismaMock.user.findFirst.mockResolvedValue({
+      ...FAKE_USER,
+      authIdentities: [],
+    });
+
+    await expect(
+      resolveOAuthIdentity("GOOGLE", "google-new-888", {
+        name: "João Silva",
+        email: "joao@example.com",
+      }),
+    ).rejects.toBeInstanceOf(EmailInUseOtherMethodError);
+
+    await expect(
+      resolveOAuthIdentity("GOOGLE", "google-new-888", {
+        name: "João Silva",
+        email: "joao@example.com",
+      }),
+    ).rejects.toMatchObject({ code: "EMAIL_IN_USE_OTHER_METHOD" });
+
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
+  // ── Discord: new providerId, no existing user ─────────────────────────────
+
+  it("Discord — new providerId (no existing user): creates User + AuthIdentity", async () => {
+    prismaMock.authIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.user.findFirst.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue({ ...FAKE_USER, provider: "DISCORD" });
+
+    const result = await resolveOAuthIdentity("DISCORD", "discord-new-777", {
+      name: "Discord User",
+      email: "discord@example.com",
+    });
+
+    expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
+    expect(result.isNew).toBe(true);
+  });
+
+  // ── Discord: existing AuthIdentity → return user ──────────────────────────
+
+  it("Discord — existing providerId: finds User via AuthIdentity", async () => {
+    const discordIdentity = {
+      id: "identity-discord-1",
+      userId: "user-abc",
+      provider: "DISCORD" as const,
+      providerId: "discord-456",
+      createdAt: new Date(),
+      user: FAKE_USER,
+    };
+    prismaMock.authIdentity.findUnique.mockResolvedValue(discordIdentity);
+
+    const result = await resolveOAuthIdentity("DISCORD", "discord-456", {
+      name: "João Silva",
+    });
+
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+    expect(result.isNew).toBe(false);
+    expect(result.user).toMatchObject({ id: "user-abc" });
+  });
+
+  // ── Race condition: email user exists AND has the identity ────────────────
+
+  it("race condition — email user already has the AuthIdentity: returns user as success", async () => {
+    prismaMock.authIdentity.findUnique.mockResolvedValue(null);
+    // findFirst returns user WITH the matching authIdentity (race condition)
+    prismaMock.user.findFirst.mockResolvedValue({
+      ...FAKE_USER,
+      authIdentities: [FAKE_GOOGLE_IDENTITY],
+    });
+
+    const result = await resolveOAuthIdentity("GOOGLE", "google-123", {
+      name: "João Silva",
+      email: "joao@example.com",
+    });
+
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+    expect(result.isNew).toBe(false);
+    expect(result.user).toMatchObject({ id: "user-abc" });
+  });
+
+  // ── No email provided → always create new user ────────────────────────────
+
+  it("no email provided: creates new User without checking for email conflicts", async () => {
+    prismaMock.authIdentity.findUnique.mockResolvedValue(null);
+    prismaMock.user.create.mockResolvedValue(FAKE_USER);
+
+    const result = await resolveOAuthIdentity("GOOGLE", "google-no-email", {
+      name: "No Email User",
+      // no email
+    });
+
+    // findFirst should NOT be called since there's no email to check
+    expect(prismaMock.user.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.user.create).toHaveBeenCalledTimes(1);
+    expect(result.isNew).toBe(true);
   });
 });
 
