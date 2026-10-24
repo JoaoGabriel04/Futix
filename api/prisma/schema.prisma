@@ -75,8 +75,8 @@ enum MatchEventType {
 
 model User {
   id                String       @id @default(cuid())
-  provider          Provider
-  providerId        String
+  provider          Provider?
+  providerId        String?
   email             String?
   name              String
   nickname          String?

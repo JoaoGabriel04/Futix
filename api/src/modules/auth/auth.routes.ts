@@ -7,7 +7,7 @@ import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { signAccess, signRefresh, verifyLink } from "../../lib/jwt.js";
 import { upsertUser } from "./auth.service.js";
-import { handleLogout, handleOAuthCallback, handleRefresh } from "./auth.controller.js";
+import { handleLogin, handleLogout, handleOAuthCallback, handleRefresh, handleRegister } from "./auth.controller.js";
 
 // ── Passport strategies ──────────────────────────────────────────────────────
 
@@ -72,9 +72,40 @@ const oauthInitLimiter = rateLimit({
   message: { error: { code: "RATE_LIMITED", message: "Muitas tentativas. Aguarde e tente novamente." } },
 });
 
+// Rate limiter specific to POST /auth/login.
+// Key is IP + normalised email to prevent credential stuffing.
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => {
+    const email = (req.body?.email ?? "").toLowerCase().trim();
+    const ip = req.ip ?? "unknown";
+    return `${ip}:${email}`;
+  },
+  handler: (_req, res) => {
+    res
+      .status(429)
+      .json({ error: "RATE_LIMIT_EXCEEDED", message: "Muitas tentativas. Tente novamente em 15 minutos" });
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // ── Router ───────────────────────────────────────────────────────────────────
 
 const router: IRouter = Router();
+
+// ── Email + password routes ──────────────────────────────────────────────────
+
+router.post("/auth/register", (req, res, next) => {
+  handleRegister(req, res).catch(next);
+});
+
+router.post("/auth/login", loginRateLimiter, (req, res, next) => {
+  handleLogin(req, res).catch(next);
+});
+
+// ── OAuth routes ─────────────────────────────────────────────────────────────
 
 router.get(
   "/auth/google",
