@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
+import { AppHeader } from "./AppHeader";
 
 interface AppShellProps {
   children: ReactNode;
@@ -37,6 +38,7 @@ export function AppShell({
 
       {/* Conteúdo principal */}
       <main className="flex flex-col flex-1 min-w-0 overflow-y-auto pb-[84px] lg:pb-0">
+        <AppHeader />
         {children}
       </main>
 
