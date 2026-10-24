@@ -290,7 +290,7 @@ export default function CadastroPage() {
             <div className="flex flex-col gap-[var(--space-md)] md:flex-row md:gap-[var(--space-sm)]">
               <a
                 href={`${apiUrl}/auth/google`}
-                className="flex h-[52px] flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-[15px] font-semibold leading-[22px] text-text-primary"
+                className="flex h-[52px] md:flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-[15px] font-semibold leading-[22px] text-text-primary"
               >
                 <span className="flex size-6 items-center justify-center rounded-full bg-accent-subtle text-[13px] font-semibold text-accent-default md:hidden">
                   G
@@ -300,7 +300,7 @@ export default function CadastroPage() {
               </a>
               <a
                 href={`${apiUrl}/auth/discord`}
-                className="flex h-[52px] flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-[15px] font-semibold leading-[22px] text-text-primary"
+                className="flex h-[52px] md:flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-[15px] font-semibold leading-[22px] text-text-primary"
               >
                 <span className="flex size-6 items-center justify-center rounded-full bg-accent-subtle text-[13px] font-semibold text-accent-default md:hidden">
                   D
