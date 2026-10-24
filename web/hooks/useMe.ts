@@ -13,6 +13,7 @@ type MeUser = {
   avatarUrl: string | null;
   email: string | null;
   createdAt: string;
+  connections?: { google: boolean; discord: boolean; password: boolean };
 };
 
 export function useMe() {
