@@ -8,6 +8,7 @@ import { requireAuth } from "../../middlewares/auth.js";
 import { signAccess, signRefresh, verifyLink, signOAuthState, verifyOAuthState, verifyToken } from "../../lib/jwt.js";
 import { upsertUser, linkOAuthIdentity, EmailInUseOtherMethodError } from "./auth.service.js";
 import { handleLogin, handleLogout, handleOAuthCallback, handleRefresh, handleRegister } from "./auth.controller.js";
+import { prisma } from "../../lib/prisma.js";
 
 // ── Passport strategies ──────────────────────────────────────────────────────
 
@@ -249,14 +250,28 @@ router.get("/auth/exchange", (req, res) => {
     res.status(400).json({ error: { code: "BAD_REQUEST", message: "Token ausente." } });
     return;
   }
+  let userId: string;
+  let isNew: boolean;
   try {
-    const { userId, isNew } = verifyLink(t);
-    const accessToken = signAccess(userId);
-    const refreshToken = signRefresh(userId);
-    res.json({ accessToken, refreshToken, isNew });
+    ({ userId, isNew } = verifyLink(t));
   } catch {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Link inválido ou expirado." } });
+    return;
   }
+  prisma.user
+    .findUnique({ where: { id: userId }, select: { sessionVersion: true } })
+    .then((user) => {
+      if (user === null) {
+        res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Link inválido ou expirado." } });
+        return;
+      }
+      const accessToken = signAccess(userId, user.sessionVersion);
+      const refreshToken = signRefresh(userId);
+      res.json({ accessToken, refreshToken, isNew });
+    })
+    .catch(() => {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Link inválido ou expirado." } });
+    });
 });
 
 router.post("/auth/refresh", handleRefresh);

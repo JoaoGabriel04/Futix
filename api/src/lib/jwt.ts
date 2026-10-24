@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
 import { env } from "../env.js";
 
-export function signAccess(userId: string): string {
-  return jwt.sign({ userId }, env.JWT_SECRET, {
+export function signAccess(userId: string, sessionVersion: number): string {
+  return jwt.sign({ userId, sessionVersion }, env.JWT_SECRET, {
     expiresIn: env.JWT_EXPIRES_IN,
   } as jwt.SignOptions);
 }
@@ -98,7 +98,7 @@ export function verifyOAuthState(token: string): { userId: string; provider: str
   };
 }
 
-export function verifyToken(token: string): { userId: string } {
+export function verifyToken(token: string): { userId: string; sessionVersion: number | undefined } {
   let decoded: unknown;
 
   try {
@@ -124,5 +124,9 @@ export function verifyToken(token: string): { userId: string } {
     throw error;
   }
 
-  return { userId: (decoded as { userId: string }).userId };
+  const payload = decoded as { userId: string; sessionVersion?: unknown };
+  const sessionVersion =
+    typeof payload.sessionVersion === "number" ? payload.sessionVersion : undefined;
+
+  return { userId: payload.userId, sessionVersion };
 }

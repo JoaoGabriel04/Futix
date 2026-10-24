@@ -1,8 +1,10 @@
+import bcrypt from "bcryptjs";
 import type { User, AuthProvider, AuthIdentity } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { uploadAvatar } from "../../lib/cloudinary.js";
 import { prisma } from "../../lib/prisma.js";
 import type { UpdateMeInput } from "@fut/shared";
+import { assertPasswordStrength } from "../auth/auth.service.js";
 
 export type UserWithConnections = User & {
   authIdentities: AuthIdentity[];
@@ -101,4 +103,46 @@ export async function updateAvatar(
 ): Promise<User> {
   const avatarUrl = await uploadAvatar(buffer, mimetype);
   return prisma.user.update({ where: { id: userId }, data: { avatarUrl } });
+}
+
+/**
+ * R43 — Create or change the password for the authenticated user.
+ * Returns the updated user (with new sessionVersion).
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string | undefined,
+  newPassword: string,
+): Promise<User> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+  if (user.passwordHash !== null) {
+    // Account already has a password — currentPassword is required
+    if (currentPassword === undefined || currentPassword.length === 0) {
+      throw makeAppError("Senha atual é obrigatória", "INVALID_CREDENTIALS", 400);
+    }
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw makeAppError("Senha atual incorreta", "INVALID_CREDENTIALS", 401);
+    }
+  } else {
+    // Social-only account — email is required to set a password
+    if (user.email === null) {
+      throw makeAppError(
+        "Esta conta não tem e-mail. Adicione um e-mail para criar senha",
+        "EMAIL_REQUIRED",
+        400,
+      );
+    }
+  }
+
+  assertPasswordStrength(newPassword);
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const newSessionVersion = user.sessionVersion + 1;
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, sessionVersion: newSessionVersion },
+  });
 }

@@ -177,8 +177,8 @@ export async function linkOAuthIdentity(
   }
 }
 
-export function setAuthCookies(res: Response, userId: string): void {
-  const accessToken = signAccess(userId);
+export function setAuthCookies(res: Response, userId: string, sessionVersion: number): void {
+  const accessToken = signAccess(userId, sessionVersion);
   const refreshToken = signRefresh(userId);
 
   res.cookie("access_token", accessToken, cookieOptions(ACCESS_TOKEN_MAX_AGE));
@@ -260,6 +260,7 @@ export async function registerWithEmail(
       name,
       email,
       passwordHash,
+      sessionVersion: 0,
     },
   });
 

@@ -3,18 +3,19 @@ import { env } from "../../env.js";
 import { signAccess, signLink, signRefresh, verifyToken } from "../../lib/jwt.js";
 import { registerSchema, loginSchema } from "./auth.schema.js";
 import { registerWithEmail, loginWithEmail, setAuthCookies } from "./auth.service.js";
+import { prisma } from "../../lib/prisma.js";
 
 export async function handleRegister(req: Request, res: Response): Promise<void> {
   const body = registerSchema.parse(req.body);
   const user = await registerWithEmail(body.name, body.email, body.password);
-  setAuthCookies(res, user.id);
+  setAuthCookies(res, user.id, user.sessionVersion);
   res.status(201).json({ user });
 }
 
 export async function handleLogin(req: Request, res: Response): Promise<void> {
   const body = loginSchema.parse(req.body);
   const user = await loginWithEmail(body.email, body.password);
-  setAuthCookies(res, user.id);
+  setAuthCookies(res, user.id, user.sessionVersion);
   res.json({ user });
 }
 
@@ -55,14 +56,28 @@ export function handleRefresh(req: Request, res: Response): void {
     return;
   }
 
+  let userId: string;
   try {
-    const { userId } = verifyToken(refreshToken);
-    const accessToken = signAccess(userId);
-    const newRefreshToken = signRefresh(userId);
-    res.json({ accessToken, refreshToken: newRefreshToken });
+    ({ userId } = verifyToken(refreshToken));
   } catch {
     res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Sessão expirada." } });
+    return;
   }
+
+  prisma.user
+    .findUnique({ where: { id: userId }, select: { sessionVersion: true } })
+    .then((user) => {
+      if (user === null) {
+        res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Sessão expirada." } });
+        return;
+      }
+      const accessToken = signAccess(userId, user.sessionVersion);
+      const newRefreshToken = signRefresh(userId);
+      res.json({ accessToken, refreshToken: newRefreshToken });
+    })
+    .catch(() => {
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Sessão expirada." } });
+    });
 }
 
 export function handleLogout(_req: Request, res: Response): void {

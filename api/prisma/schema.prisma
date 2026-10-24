@@ -91,6 +91,7 @@ model User {
   authIdentities    AuthIdentity[]
   passwordHash      String?
   avatarPublicId    String?
+  sessionVersion    Int          @default(0)
 
   @@unique([provider, providerId])
   @@index([email])
