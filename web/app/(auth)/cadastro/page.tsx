@@ -56,7 +56,7 @@ export default function CadastroPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/auth/register`, {
+      const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
@@ -68,7 +68,7 @@ export default function CadastroPage() {
       }
 
       const data = await res.json().catch(() => ({}));
-      const code: string = data?.code ?? data?.error ?? "";
+      const code: string = data?.error?.code ?? "";
 
       if (code === "EMAIL_TAKEN") {
         setError("Este e-mail já está em uso");

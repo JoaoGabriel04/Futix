@@ -20,6 +20,6 @@ router.get("/me", requireAuth, getMeHandler);
 router.patch("/me", requireAuth, requireSameOrigin, updateMeHandler);
 router.post("/me/avatar", requireAuth, requireSameOrigin, upload.single("avatar"), updateAvatarHandler);
 router.post("/me/password", requireAuth, requireSameOrigin, changePasswordHandler);
-router.delete("/me/connections/:provider", requireAuth, deleteMeConnectionHandler);
+router.delete("/me/connections/:provider", requireAuth, requireSameOrigin, deleteMeConnectionHandler);
 
 export { router as usersRouter };

@@ -27,10 +27,9 @@ export default function EntrarPage() {
     setError(null);
 
     try {
-      const response = await fetch(`${apiUrl}/auth/login`, {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
@@ -40,8 +39,9 @@ export default function EntrarPage() {
       }
 
       const data = await response.json();
+      const code: string = data?.error?.code ?? "";
 
-      if (response.status === 401 && data.code === "INVALID_CREDENTIALS") {
+      if (response.status === 401 && code === "INVALID_CREDENTIALS") {
         setError("E-mail ou senha incorretos");
       } else if (response.status === 429) {
         setError("Muitas tentativas. Tente novamente em 15 minutos.");

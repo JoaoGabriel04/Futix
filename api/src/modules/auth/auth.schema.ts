@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const registerSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1).max(100),
   email: z.string().email(),
   // Length and composition are validated in the service (returns WEAK_PASSWORD).
   // Zod only ensures the field is a non-empty string.

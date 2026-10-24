@@ -8,15 +8,19 @@ import { prisma } from "../../lib/prisma.js";
 export async function handleRegister(req: Request, res: Response): Promise<void> {
   const body = registerSchema.parse(req.body);
   const user = await registerWithEmail(body.name, body.email, body.password);
-  setAuthCookies(res, user.id, user.sessionVersion);
-  res.status(201).json({ user });
+  setAuthCookies(res, user.id, user.sessionVersion); // keep for backward compat
+  const accessToken = signAccess(user.id, user.sessionVersion);
+  const refreshToken = signRefresh(user.id);
+  res.status(201).json({ user, accessToken, refreshToken });
 }
 
 export async function handleLogin(req: Request, res: Response): Promise<void> {
   const body = loginSchema.parse(req.body);
   const user = await loginWithEmail(body.email, body.password);
-  setAuthCookies(res, user.id, user.sessionVersion);
-  res.json({ user });
+  setAuthCookies(res, user.id, user.sessionVersion); // keep for backward compat
+  const accessToken = signAccess(user.id, user.sessionVersion);
+  const refreshToken = signRefresh(user.id);
+  res.json({ user, accessToken, refreshToken });
 }
 
 export function handleOAuthCallback(req: Request, res: Response): void {
