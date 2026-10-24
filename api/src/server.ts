@@ -56,7 +56,9 @@ function startListening(retriesLeft = 3) {
   httpServer.listen(env.PORT);
 }
 
-void recoverLiveMatches().then(() => startListening());
+void recoverLiveMatches()
+  .catch((err) => logger.warn({ err }, "recoverLiveMatches failed — starting without recovery"))
+  .finally(() => startListening());
 
 process.on("SIGTERM", () => {
   logger.info("SIGTERM received — shutting down");
