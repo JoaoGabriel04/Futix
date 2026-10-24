@@ -89,6 +89,7 @@ describe("assertPasswordStrength", () => {
   });
 
   it("throws WEAK_PASSWORD when password has no number", () => {
+    expect(() => assertPasswordStrength("AbcdefghI")).toThrow();
     try {
       assertPasswordStrength("AbcdefghI");
     } catch (e) {
