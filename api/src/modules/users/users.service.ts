@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import type { User, AuthProvider, AuthIdentity } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import { uploadAvatar } from "../../lib/cloudinary.js";
+import { uploadAvatar, deleteAvatar } from "../../lib/cloudinary.js";
 import { prisma } from "../../lib/prisma.js";
 import type { UpdateMeInput } from "@fut/shared";
 import { assertPasswordStrength } from "../auth/auth.service.js";
@@ -101,8 +101,43 @@ export async function updateAvatar(
   buffer: Buffer,
   mimetype: string,
 ): Promise<User> {
-  const avatarUrl = await uploadAvatar(buffer, mimetype);
-  return prisma.user.update({ where: { id: userId }, data: { avatarUrl } });
+  // 1. Buscar avatarPublicId atual
+  const currentUser = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { avatarPublicId: true },
+  });
+
+  // 2. Fazer upload novo
+  const { url, publicId } = await uploadAvatar(buffer, mimetype);
+
+  // 3. Apagar avatar anterior do Cloudinary (se existia)
+  if (currentUser.avatarPublicId) {
+    await deleteAvatar(currentUser.avatarPublicId).catch(() => {
+      // log silently — don't fail the upload if delete fails
+    });
+  }
+
+  // 4. Salvar ambos
+  return prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl: url, avatarPublicId: publicId },
+  });
+}
+
+export async function deleteUserAvatar(userId: string): Promise<User> {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { avatarPublicId: true },
+  });
+
+  if (user.avatarPublicId) {
+    await deleteAvatar(user.avatarPublicId).catch(() => {});
+  }
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl: null, avatarPublicId: null },
+  });
 }
 
 /**

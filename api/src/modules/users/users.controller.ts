@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import type { AuthProvider } from "@prisma/client";
 import { updateMeSchema } from "@fut/shared";
-import { getMe, updateMe, updateAvatar, deleteConnection, changePassword } from "./users.service.js";
+import { getMe, updateMe, updateAvatar, deleteConnection, changePassword, deleteUserAvatar } from "./users.service.js";
 import { setAuthCookies } from "../auth/auth.service.js";
 
 export async function getMeHandler(
@@ -58,6 +58,20 @@ export async function updateAvatarHandler(
 
   try {
     const user = await updateAvatar(req.userId, req.file.buffer, req.file.mimetype);
+    const { providerId: _, provider: __, ...safeUser } = user;
+    res.json(safeUser);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteAvatarHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const user = await deleteUserAvatar(req.userId);
     const { providerId: _, provider: __, ...safeUser } = user;
     res.json(safeUser);
   } catch (err) {
