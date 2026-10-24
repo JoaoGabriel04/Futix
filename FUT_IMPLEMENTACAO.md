@@ -992,7 +992,29 @@ Regras de interface:
 
 Recuperação de senha, verificação de e-mail, autenticação em dois fatores, exclusão de conta, troca de e-mail, login com outros provedores, edição de perfil de outra pessoa, estatísticas pessoais entre salas.
 
-### 17.8 Como começar a atualização v3
+### 17.8 Header mobile (AppHeader) e espaço no topo
+
+Referência no Figma (arquivo 0321OSdaqpTOfpi4Rh0Mec):
+- Componente "App Header": node 26:235 (página Componentes).
+- Aplicado na tela Início: "04b Inicio com header", node 26:252, que SUBSTITUI a tela 04 Início (6:21) como referência. A tela 09 Perfil (39:462) também usa o header.
+
+Estrutura (leia os valores reais com get_design_context):
+- Barra com fundo bg-surface e borda inferior de 1px (border-default), padding lateral de 16px.
+- Esquerda: logo Futix (36 px) + nome "Futix" (Heading/H3). A logo leva a /inicio.
+- Direita: botão circular 40x40 com ícone Lucide "bell" (fundo bg-raised, borda border-default) e o Avatar do usuário logado (foto ou iniciais), que leva a /perfil.
+- O sino abre, por enquanto, apenas um estado vazio ("Sem notificações"). Não implementar notificações reais.
+
+Onde aparece:
+- Só no mobile (abaixo de lg), nas telas raiz da navegação: /inicio, /partidas e /perfil. Telas com seta de voltar (Sala, Gestão, Ajustes, Sorteio, Partida, Resumo, Criar sala, Editar perfil etc.) NÃO usam o AppHeader e mantêm a barra com seta, como no Figma.
+- No desktop não existe: a Sidebar já tem a logo.
+- Fixo no topo (sticky). O conteúdo rola por baixo dele, sem nada escondido atrás do header nem da TabBar.
+- Na tela Início, o sino que ficava ao lado de "Fala, Gabriel" foi REMOVIDO (agora está no header). Não duplicar.
+
+Espaço no topo (regra importante):
+- Os frames mobile do Figma NÃO desenham a barra de status do celular. O espaço no topo das telas é de 16 px (12 px dentro do AppHeader), e o app soma env(safe-area-inset-top) por cima disso (viewport-fit=cover no metadata).
+- Nunca reproduzir espaços grandes no topo como se fossem design. Em dúvida entre o Figma e esta regra, vale esta regra.
+
+### 17.9 Como começar a atualização v3
 
 1. Só depois de `APROVADO FASE 11`.
 2. Confirme ao humano, em no máximo 10 linhas, que leu a seção 17 e liste as alterações em código existente (17.1).

@@ -249,7 +249,7 @@ export default function CadastroPage() {
                   className={inputClass}
                 />
                 {confirmError && (
-                  <span className="text-[13px] leading-[18px] text-red-500">
+                  <span className="text-[13px] leading-[18px] text-status-danger">
                     {confirmError}
                   </span>
                 )}
@@ -258,7 +258,7 @@ export default function CadastroPage() {
 
             {/* Inline error */}
             {error && (
-              <span className="text-[13px] leading-[18px] text-red-500">
+              <span className="text-[13px] leading-[18px] text-status-danger">
                 {error}
               </span>
             )}
