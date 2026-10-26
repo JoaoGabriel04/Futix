@@ -2,13 +2,12 @@ import type { Request, Response } from "express";
 import { env } from "../../env.js";
 import { signAccess, signLink, signRefresh, verifyToken } from "../../lib/jwt.js";
 import { registerSchema, loginSchema } from "./auth.schema.js";
-import { registerWithEmail, loginWithEmail, setAuthCookies } from "./auth.service.js";
+import { registerWithEmail, loginWithEmail } from "./auth.service.js";
 import { prisma } from "../../lib/prisma.js";
 
 export async function handleRegister(req: Request, res: Response): Promise<void> {
   const body = registerSchema.parse(req.body);
   const user = await registerWithEmail(body.name, body.email, body.password);
-  setAuthCookies(res, user.id, user.sessionVersion); // keep for backward compat
   const accessToken = signAccess(user.id, user.sessionVersion);
   const refreshToken = signRefresh(user.id);
   res.status(201).json({ user, accessToken, refreshToken });
@@ -17,7 +16,6 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
 export async function handleLogin(req: Request, res: Response): Promise<void> {
   const body = loginSchema.parse(req.body);
   const user = await loginWithEmail(body.email, body.password);
-  setAuthCookies(res, user.id, user.sessionVersion); // keep for backward compat
   const accessToken = signAccess(user.id, user.sessionVersion);
   const refreshToken = signRefresh(user.id);
   res.json({ user, accessToken, refreshToken });
