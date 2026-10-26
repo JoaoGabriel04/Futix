@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImageIcon, LogOut, Mail, Phone, Target, Trash2, User } from "lucide-react";
@@ -8,18 +7,9 @@ import { toast } from "sonner";
 import { Button } from "../../../components/ui/Button";
 import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { Input } from "../../../components/ui/Input";
-import { GoogleIcon, DiscordIcon } from "../../../components/ui/SocialIcons";
 import { apiFetch } from "../../../lib/api";
 import { useMe } from "../../../hooks/useMe";
 import PerfilLoading from "./loading";
-
-function isConnected(
-  connections: { google: boolean; discord: boolean; password: boolean } | undefined,
-  provider: "GOOGLE" | "DISCORD",
-): boolean {
-  if (!connections) return false;
-  return provider === "GOOGLE" ? connections.google : connections.discord;
-}
 
 function formatPhone(value: string): string {
   const d = value.replace(/\D/g, "").slice(0, 11);
@@ -243,62 +233,6 @@ export function PerfilClient() {
           </div>
         </div>
 
-        {/* Contas conectadas */}
-        <p className="text-overline text-text-muted">CONTAS CONECTADAS</p>
-
-        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[var(--space-lg)] py-[var(--space-sm)]">
-          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
-            <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-              <GoogleIcon size={18} />
-            </div>
-            <span className="flex-1 text-body-strong text-text-primary">Google</span>
-            {isConnected(user?.connections, "GOOGLE") ? (
-              <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
-                Conectado
-              </span>
-            ) : (
-              <a
-                href={"/api/auth/oauth-link?provider=google"}
-                className="text-caption-strong text-accent-default"
-              >
-                Conectar
-              </a>
-            )}
-          </div>
-          <div className="h-px bg-border-default" />
-          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
-            <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-              <DiscordIcon size={18} />
-            </div>
-            <span className="flex-1 text-body-strong text-text-primary">Discord</span>
-            {isConnected(user?.connections, "DISCORD") ? (
-              <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
-                Conectado
-              </span>
-            ) : (
-              <a
-                href={"/api/auth/oauth-link?provider=discord"}
-                className="text-caption-strong text-accent-default"
-              >
-                Conectar
-              </a>
-            )}
-          </div>
-          <div className="h-px bg-border-default" />
-          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
-            <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-              <Mail size={16} className="text-text-secondary" />
-            </div>
-            <span className="flex-1 text-body-strong text-text-primary">E-mail e senha</span>
-            <Link
-              href="/perfil/editar"
-              className="text-caption-strong text-accent-default"
-            >
-              {user?.connections?.password ? "Alterar senha" : "Criar senha"}
-            </Link>
-          </div>
-        </div>
-
         {/* Logout */}
         <Button variant="Danger" size="Large" className="w-full" onClick={handleLogout}>
           <LogOut size={18} />
@@ -450,67 +384,6 @@ export function PerfilClient() {
                 >
                   {isSaving ? "Salvando..." : "Salvar alterações"}
                 </Button>
-              </div>
-            </div>
-
-            {/* Contas conectadas card */}
-            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[var(--space-xl)] py-[var(--space-xs)]">
-              <p className="py-[var(--space-md)] text-body-strong text-text-primary">
-                Contas conectadas
-              </p>
-              <div className="h-px bg-border-default" />
-
-              <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
-                <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-caption-strong text-text-secondary">G</span>
-                </div>
-                <span className="flex-1 text-body-strong text-text-primary">Google</span>
-                {isConnected(user?.connections, "GOOGLE") ? (
-                  <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
-                    Conectado
-                  </span>
-                ) : (
-                  <a
-                    href={"/api/auth/oauth-link?provider=google"}
-                    className="text-caption-strong text-accent-default"
-                  >
-                    Conectar
-                  </a>
-                )}
-              </div>
-              <div className="h-px bg-border-default" />
-
-              <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
-                <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-caption-strong text-text-secondary">D</span>
-                </div>
-                <span className="flex-1 text-body-strong text-text-primary">Discord</span>
-                {isConnected(user?.connections, "DISCORD") ? (
-                  <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
-                    Conectado
-                  </span>
-                ) : (
-                  <a
-                    href={"/api/auth/oauth-link?provider=discord"}
-                    className="text-caption-strong text-accent-default"
-                  >
-                    Conectar
-                  </a>
-                )}
-              </div>
-              <div className="h-px bg-border-default" />
-
-              <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
-                <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-                  <Mail size={16} className="text-text-secondary" />
-                </div>
-                <span className="flex-1 text-body-strong text-text-primary">E-mail e senha</span>
-                <Link
-                  href="/perfil/editar"
-                  className="text-caption-strong text-accent-default"
-                >
-                  {user?.connections?.password ? "Alterar senha" : "Criar senha"}
-                </Link>
               </div>
             </div>
 
