@@ -5,7 +5,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import DiscordStrategy from "passport-discord";
 import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
-import { signAccess, signRefresh, verifyLink, signOAuthState, verifyOAuthState, verifyToken, signLinkInit, verifyLinkInit } from "../../lib/jwt.js";
+import { signAccess, signRefresh, verifyLink, signOAuthState, verifyOAuthState, verifyToken, signLinkInit, verifyLinkInit, signSocketToken } from "../../lib/jwt.js";
 import { upsertUser, linkOAuthIdentity, EmailInUseOtherMethodError } from "./auth.service.js";
 import { handleLogin, handleLogout, handleOAuthCallback, handleRefresh, handleRegister } from "./auth.controller.js";
 import { prisma } from "../../lib/prisma.js";
@@ -278,6 +278,11 @@ router.get("/auth/exchange", (req, res) => {
 router.get("/auth/link-token", requireAuth, (req, res) => {
   const linkToken = signLinkInit(req.userId);
   res.json({ linkToken });
+});
+
+router.get("/auth/socket-token", requireAuth, (req, res) => {
+  const socketToken = signSocketToken(req.userId);
+  res.json({ token: socketToken });
 });
 
 router.post("/auth/refresh", handleRefresh);

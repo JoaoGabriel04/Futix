@@ -135,6 +135,42 @@ export function verifyLinkInit(token: string): { userId: string } {
   return { userId: (decoded as { userId: string }).userId };
 }
 
+// Token efêmero (30s) emitido pela Render e enviado via handshake.auth para
+// autenticar a conexão Socket.IO sem depender de cookies cross-domain.
+export function signSocketToken(userId: string): string {
+  return jwt.sign({ userId, type: "socket" }, env.JWT_SECRET, {
+    expiresIn: "30s",
+  } as jwt.SignOptions);
+}
+
+export function verifySocketToken(token: string): { userId: string } {
+  let decoded: unknown;
+  try {
+    decoded = jwt.verify(token, env.JWT_SECRET);
+  } catch (err) {
+    const message = err instanceof jwt.TokenExpiredError ? "Token expirado." : "Token inválido.";
+    const error = new Error(message) as Error & { status: number; code: string };
+    error.status = 401;
+    error.code = "UNAUTHORIZED";
+    throw error;
+  }
+
+  if (
+    typeof decoded !== "object" ||
+    decoded === null ||
+    !("userId" in decoded) ||
+    typeof (decoded as { userId?: unknown }).userId !== "string" ||
+    (decoded as { type?: unknown }).type !== "socket"
+  ) {
+    const error = new Error("Token inválido.") as Error & { status: number; code: string };
+    error.status = 401;
+    error.code = "UNAUTHORIZED";
+    throw error;
+  }
+
+  return { userId: (decoded as { userId: string }).userId };
+}
+
 export function verifyToken(token: string): { userId: string; sessionVersion: number | undefined } {
   let decoded: unknown;
 
