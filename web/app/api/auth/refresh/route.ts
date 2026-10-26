@@ -22,6 +22,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   });
 
   if (!res.ok) {
+    // 5xx = erro no servidor (ex: Render em cold start/redeploy) — não apaga cookies
+    if (res.status >= 500) {
+      return NextResponse.json(
+        { error: { code: "SERVER_ERROR", message: "Erro no servidor. Tente novamente." } },
+        { status: 502 },
+      );
+    }
+    // 401/403 = token inválido ou expirado — apaga cookies e força re-login
     const response = NextResponse.json(
       { error: { code: "UNAUTHORIZED", message: "Sessão expirada." } },
       { status: 401 },
