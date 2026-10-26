@@ -1,3 +1,17 @@
+// Promise compartilhada: múltiplos 401 simultâneos disparam apenas um refresh.
+let refreshPromise: Promise<boolean> | null = null;
+
+function doRefresh(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch("/api/auth/refresh", { method: "POST" })
+      .then((r) => r.ok)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
 const STATUS_MESSAGES: Record<number, string> = {
   400: "Dados inválidos. Verifique as informações e tente novamente.",
   403: "Você não tem permissão para realizar esta ação.",
@@ -29,17 +43,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new Error("Sem conexão com o servidor. Verifique sua internet e tente novamente.");
   }
 
-  // On 401, try to refresh the session once then retry the original request.
-  // Guard against infinite loop by never refreshing the refresh endpoint itself.
-  if (res.status === 401 && path !== "/auth/refresh") {
-    const refreshRes = await fetch(`/api/auth/refresh`, {
-      method: "POST",
-    });
-
-    if (refreshRes.ok) {
+  if (res.status === 401) {
+    const refreshed = await doRefresh();
+    if (refreshed) {
       return apiFetch<T>(path, init);
     }
-
     if (typeof window !== "undefined") {
       window.location.href = "/entrar";
     }

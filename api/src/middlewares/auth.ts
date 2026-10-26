@@ -18,7 +18,13 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   try {
     ({ userId, sessionVersion } = verifyToken(token));
   } catch (err) {
-    next(err);
+    const isExpired = err instanceof Error && err.name === "TokenExpiredError";
+    const authErr = new Error(
+      isExpired ? "Sessão expirada." : "Token inválido.",
+    ) as Error & { status: number; code: string };
+    authErr.status = 401;
+    authErr.code = isExpired ? "TOKEN_EXPIRED" : "UNAUTHORIZED";
+    next(authErr);
     return;
   }
 

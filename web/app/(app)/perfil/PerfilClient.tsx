@@ -33,8 +33,6 @@ export function PerfilClient() {
   const router = useRouter();
   const { user, isLoading, mutate } = useMe();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
-
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
@@ -260,7 +258,7 @@ export function PerfilClient() {
               </span>
             ) : (
               <a
-                href={`${apiUrl}/auth/google?link=1`}
+                href={"/api/auth/oauth-link?provider=google"}
                 className="text-caption-strong text-accent-default"
               >
                 Conectar
@@ -279,7 +277,7 @@ export function PerfilClient() {
               </span>
             ) : (
               <a
-                href={`${apiUrl}/auth/discord?link=1`}
+                href={"/api/auth/oauth-link?provider=discord"}
                 className="text-caption-strong text-accent-default"
               >
                 Conectar
@@ -473,7 +471,7 @@ export function PerfilClient() {
                   </span>
                 ) : (
                   <a
-                    href={`${apiUrl}/auth/google?link=1`}
+                    href={"/api/auth/oauth-link?provider=google"}
                     className="text-caption-strong text-accent-default"
                   >
                     Conectar
@@ -493,7 +491,7 @@ export function PerfilClient() {
                   </span>
                 ) : (
                   <a
-                    href={`${apiUrl}/auth/discord?link=1`}
+                    href={"/api/auth/oauth-link?provider=discord"}
                     className="text-caption-strong text-accent-default"
                   >
                     Conectar

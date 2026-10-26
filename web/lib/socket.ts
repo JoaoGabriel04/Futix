@@ -2,17 +2,16 @@ import { io, type Socket } from "socket.io-client";
 
 let socket: Socket | null = null;
 
-/**
- * Get or create the Socket.IO client instance.
- * Lazy initialization: only creates the socket on first call.
- * Uses withCredentials to send the httpOnly access_token cookie.
- * Does not auto-connect; must be explicitly connected via socket.connect().
- */
 export function getSocket(): Socket {
   if (!socket) {
     socket = io(process.env.NEXT_PUBLIC_API_URL!, {
-      withCredentials: true,
       autoConnect: false,
+      auth: (cb: (data: { token: string }) => void) => {
+        fetch("/api/auth/socket-token")
+          .then((res) => (res.ok ? (res.json() as Promise<{ token?: string }>) : Promise.resolve({ token: "" })))
+          .then((data) => cb({ token: data.token ?? "" }))
+          .catch(() => cb({ token: "" }));
+      },
     });
   }
   return socket;

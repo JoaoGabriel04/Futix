@@ -1,30 +1,8 @@
 import type { Server as HttpServer } from "http";
 import { Server } from "socket.io";
-import { verifyToken } from "./lib/jwt.js";
+import { verifySocketToken } from "./lib/jwt.js";
 import { env } from "./env.js";
 import { prisma } from "./lib/prisma.js";
-
-// ── helpers ────────────────────────────────────────────────────────────────────
-
-/**
- * Parse cookies from a cookie header string.
- * Returns a record of cookie name → value.
- */
-function parseCookies(cookieHeader: string | undefined): Record<string, string> {
-  if (!cookieHeader) {
-    return {};
-  }
-
-  const cookies: Record<string, string> = {};
-  cookieHeader.split(";").forEach((cookie) => {
-    const [name, value] = cookie.trim().split("=");
-    if (name && value) {
-      cookies[name] = decodeURIComponent(value);
-    }
-  });
-
-  return cookies;
-}
 
 // ── socket server ──────────────────────────────────────────────────────────────
 
@@ -36,18 +14,10 @@ export function createSocketServer(httpServer: HttpServer) {
     },
   });
 
-  /**
-   * Middleware: Authenticate socket via JWT in httpOnly cookie.
-   * Reads `access_token` from the handshake and verifies it.
-   * Sets `socket.data.userId` if valid, rejects with UNAUTHORIZED if not.
-   */
   io.use(async (socket, next) => {
     try {
-      const cookieHeader = socket.handshake.headers.cookie;
-      const cookies = parseCookies(cookieHeader);
-      const token = cookies["access_token"];
-
-      if (!token || typeof token !== "string" || token.length === 0) {
+      const token = socket.handshake.auth.token as unknown;
+      if (typeof token !== "string" || token.length === 0) {
         const error = new Error("Token não encontrado.") as Error & {
           status: number;
           code: string;
@@ -56,8 +26,7 @@ export function createSocketServer(httpServer: HttpServer) {
         error.code = "UNAUTHORIZED";
         return next(error);
       }
-
-      const { userId } = verifyToken(token);
+      const { userId } = verifySocketToken(token);
       socket.data.userId = userId;
       next();
     } catch (err) {
