@@ -5,7 +5,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import DiscordStrategy from "passport-discord";
 import { env } from "../../env.js";
 import { requireAuth } from "../../middlewares/auth.js";
-import { signAccess, signRefresh, verifyLink, signOAuthState, verifyOAuthState, verifyToken } from "../../lib/jwt.js";
+import { signAccess, signRefresh, verifyLink, signOAuthState, verifyOAuthState, verifyToken, signLinkInit, verifyLinkInit } from "../../lib/jwt.js";
 import { upsertUser, linkOAuthIdentity, EmailInUseOtherMethodError } from "./auth.service.js";
 import { handleLogin, handleLogout, handleOAuthCallback, handleRefresh, handleRegister } from "./auth.controller.js";
 import { prisma } from "../../lib/prisma.js";
@@ -180,17 +180,16 @@ router.post("/auth/login", loginRateLimiter, (req, res, next) => {
 router.get("/auth/google", oauthInitLimiter, (req, res, next) => {
   const isLink = req.query["link"] === "1";
   if (isLink) {
-    // Verify the user is authenticated
-    const token = req.cookies["access_token"] as unknown;
-    if (typeof token !== "string" || token.length === 0) {
+    const t = req.query["t"];
+    if (typeof t !== "string" || t.length === 0) {
       res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Não autenticado." } });
       return;
     }
     let userId: string;
     try {
-      ({ userId } = verifyToken(token));
+      ({ userId } = verifyLinkInit(t));
     } catch {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token inválido." } });
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token inválido ou expirado." } });
       return;
     }
     const state = signOAuthState(userId, "google");
@@ -214,16 +213,16 @@ router.get(
 router.get("/auth/discord", oauthInitLimiter, (req, res, next) => {
   const isLink = req.query["link"] === "1";
   if (isLink) {
-    const token = req.cookies["access_token"] as unknown;
-    if (typeof token !== "string" || token.length === 0) {
+    const t = req.query["t"];
+    if (typeof t !== "string" || t.length === 0) {
       res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Não autenticado." } });
       return;
     }
     let userId: string;
     try {
-      ({ userId } = verifyToken(token));
+      ({ userId } = verifyLinkInit(t));
     } catch {
-      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token inválido." } });
+      res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token inválido ou expirado." } });
       return;
     }
     const state = signOAuthState(userId, "discord");
@@ -272,6 +271,13 @@ router.get("/auth/exchange", (req, res) => {
     .catch(() => {
       res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Link inválido ou expirado." } });
     });
+});
+
+// Emite um token link-init de curta duração (5 min) para que o front-end
+// possa iniciar o fluxo OAuth de vínculo sem expor o access_token na URL.
+router.get("/auth/link-token", requireAuth, (req, res) => {
+  const linkToken = signLinkInit(req.userId);
+  res.json({ linkToken });
 });
 
 router.post("/auth/refresh", handleRefresh);

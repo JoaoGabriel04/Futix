@@ -98,6 +98,43 @@ export function verifyOAuthState(token: string): { userId: string; provider: str
   };
 }
 
+// Token de curta duração (5 min) emitido pela Render ao receber o access_token
+// via proxy Next.js. Permite que a rota OAuth link seja iniciada sem expor o
+// access_token na URL e sem depender de cookies cross-domain.
+export function signLinkInit(userId: string): string {
+  return jwt.sign({ userId, type: "link-init" }, env.JWT_SECRET, {
+    expiresIn: "5m",
+  } as jwt.SignOptions);
+}
+
+export function verifyLinkInit(token: string): { userId: string } {
+  let decoded: unknown;
+  try {
+    decoded = jwt.verify(token, env.JWT_SECRET);
+  } catch (err) {
+    const message = err instanceof jwt.TokenExpiredError ? "Link expirado." : "Link inválido.";
+    const error = new Error(message) as Error & { status: number; code: string };
+    error.status = 401;
+    error.code = "UNAUTHORIZED";
+    throw error;
+  }
+
+  if (
+    typeof decoded !== "object" ||
+    decoded === null ||
+    !("userId" in decoded) ||
+    typeof (decoded as { userId?: unknown }).userId !== "string" ||
+    (decoded as { type?: unknown }).type !== "link-init"
+  ) {
+    const error = new Error("Link inválido.") as Error & { status: number; code: string };
+    error.status = 401;
+    error.code = "UNAUTHORIZED";
+    throw error;
+  }
+
+  return { userId: (decoded as { userId: string }).userId };
+}
+
 export function verifyToken(token: string): { userId: string; sessionVersion: number | undefined } {
   let decoded: unknown;
 
