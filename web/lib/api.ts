@@ -9,15 +9,15 @@ const STATUS_MESSAGES: Record<number, string> = {
   503: "Serviço temporariamente indisponível.",
 };
 
-// Base fetch wrapper with credentials and automatic token refresh on 401.
+// Base fetch wrapper with automatic token refresh on 401.
+// All requests are proxied through /api/proxy so the Next.js server can
+// forward the httpOnly access_token cookie to the Express API.
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
-
   const isFormData = init?.body instanceof FormData;
 
   let res: Response;
   try {
-    res = await fetch(`${base}${path}`, {
+    res = await fetch(`/api/proxy${path}`, {
       ...init,
       credentials: "include",
       headers: {
