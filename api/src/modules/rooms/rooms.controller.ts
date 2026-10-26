@@ -9,6 +9,7 @@ import {
   unlockRoom,
   cancelRoom,
   finishRoom,
+  deleteRoom,
   getRoomSession,
   getRoomSummary,
 } from "./rooms.service.js";
@@ -190,6 +191,24 @@ export async function finishRoomHandler(
 
   try {
     await finishRoom(req.userId, roomId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteRoomHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+  if (!roomId) {
+    res.status(400).json({ error: { code: "VALIDATION_ERROR", message: "ID da sala ausente." } });
+    return;
+  }
+  try {
+    await deleteRoom(req.userId, roomId);
     res.status(204).send();
   } catch (err) {
     next(err);

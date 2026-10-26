@@ -108,15 +108,15 @@ export default function EditarPerfilPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <div className="flex flex-col gap-[var(--space-lg)] pt-[16px] pb-[8px] px-[var(--space-lg)] flex-1">
+      <div className="flex flex-col gap-[var(--space-lg)] pt-[var(--space-lg)] pb-[var(--space-sm)] px-[var(--space-lg)] flex-1">
         <div className="flex gap-[var(--space-md)] items-center w-full">
           <button type="button" onClick={() => router.back()} aria-label="Voltar"
             className="shrink-0">
             <ArrowLeft size={22} className="text-text-primary" />
           </button>
-          <div className="flex flex-col gap-[4px] flex-1 min-w-0">
-            <p className="text-[17px] font-semibold leading-[22px] text-text-primary">Editar perfil</p>
-            <p className="text-[13px] leading-[18px] text-text-secondary">
+          <div className="flex flex-col gap-[var(--space-xs)] flex-1 min-w-0">
+            <p className="text-heading-h3 text-text-primary">Editar perfil</p>
+            <p className="text-caption-regular text-text-secondary">
               Seus dados aparecem para os organizadores
             </p>
           </div>
@@ -141,7 +141,7 @@ export default function EditarPerfilPage() {
 
           <button type="button" onClick={() => fileInputRef.current?.click()}
             disabled={isUploadingAvatar}
-            className="text-[15px] font-semibold text-accent-default disabled:opacity-40">
+            className="text-body-strong text-accent-default disabled:opacity-40">
             {isUploadingAvatar ? "Enviando..." : "Alterar foto"}
           </button>
         </div>
@@ -152,7 +152,7 @@ export default function EditarPerfilPage() {
           onChange={(e) => setPhone(formatPhone(e.target.value))} />
 
         <div className="flex flex-col gap-[var(--space-sm)]">
-          <p className="text-[13px] font-semibold leading-[18px] text-text-secondary">
+          <p className="text-caption-strong text-text-secondary">
             Posição preferida
           </p>
           <div className="flex flex-wrap gap-[var(--space-sm)]">
@@ -160,8 +160,8 @@ export default function EditarPerfilPage() {
               <button key={pos} type="button"
                 onClick={() => setPosition(pos === position ? "" : pos)}
                 className={pos === position
-                  ? "bg-accent-default border border-accent-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-on-accent"
-                  : "bg-bg-raised border border-border-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-primary"
+                  ? "bg-accent-default border border-accent-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-on-accent"
+                  : "bg-bg-raised border border-border-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-primary"
                 }>
                 {pos}
               </button>
@@ -169,18 +169,17 @@ export default function EditarPerfilPage() {
           </div>
         </div>
 
-        {user?.avatarUrl && (
-          <button type="button" onClick={handleDeleteAvatar} disabled={isDeletingAvatar}
-            className="flex gap-[var(--space-sm)] items-center disabled:opacity-40">
-            <Trash2 size={16} className="text-status-danger" />
-            <span className="text-[13px] font-semibold text-status-danger">
-              {isDeletingAvatar ? "Removendo..." : "Remover foto"}
-            </span>
-          </button>
-        )}
+        <button type="button" onClick={handleDeleteAvatar}
+          disabled={isDeletingAvatar || !user?.avatarUrl}
+          className="flex gap-[var(--space-sm)] items-center disabled:opacity-40">
+          <Trash2 size={16} className="text-status-danger" />
+          <span className="text-caption-strong text-status-danger">
+            {isDeletingAvatar ? "Removendo..." : "Remover foto"}
+          </span>
+        </button>
       </div>
 
-      <div className="shrink-0 bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
+      <div className="shrink-0 bg-bg-sidebar border-t border-border-default pt-[var(--space-md)] pb-[var(--space-2xl)] px-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
         <Button variant="Primary" size="Large" className="w-full"
           onClick={handleSave} disabled={isSaving}>
           {isSaving ? "Salvando..." : "Salvar alterações"}
@@ -192,7 +191,7 @@ export default function EditarPerfilPage() {
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
-        className="hidden" onChange={handleAvatarChange} />
+        capture="user" className="hidden" onChange={handleAvatarChange} />
     </div>
   );
 }

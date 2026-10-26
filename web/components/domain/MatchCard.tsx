@@ -28,7 +28,7 @@ export function MatchCard({
   return (
     <div
       className={[
-        "bg-bg-surface border border-border-default rounded-lg",
+        "bg-bg-surface border border-border-default rounded-[var(--radius-lg)]",
         "flex flex-col gap-[var(--space-md)] p-[var(--space-lg)] w-full",
         className,
       ]

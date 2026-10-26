@@ -6,11 +6,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ArrowLeft, Camera } from "lucide-react";
 import { Button } from "../../../../components/ui/Button";
 import { Input } from "../../../../components/ui/Input";
 import { Avatar } from "../../../../components/ui/Avatar";
 import { apiFetch } from "../../../../lib/api";
 import { useMe } from "../../../../hooks/useMe";
+
+const POSITIONS = [
+  { value: "GOALKEEPER", label: "Goleiro" },
+  { value: "DEFENDER", label: "Defensor" },
+  { value: "MIDFIELDER", label: "Meia" },
+  { value: "FORWARD", label: "Atacante" },
+] as const;
 
 const formSchema = z.object({
   nome: z.string().min(1, "Nome é obrigatório"),
@@ -41,6 +49,7 @@ export default function CadastroPage() {
     handleSubmit,
     reset,
     setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -52,7 +61,8 @@ export default function CadastroPage() {
     },
   });
 
-  // Pre-fill form when user data loads
+  const selectedPosition = watch("posicaoPreferida");
+
   useEffect(() => {
     if (user) {
       reset({
@@ -70,8 +80,6 @@ export default function CadastroPage() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate type and size
     const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type)) {
       toast.error("Formato de imagem inválido. Use JPG, PNG ou WebP.");
@@ -81,14 +89,12 @@ export default function CadastroPage() {
       toast.error("A imagem deve ter no máximo 2MB.");
       return;
     }
-
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
   }
 
   async function onSubmit(data: FormData) {
     try {
-      // Patch text fields
       await apiFetch<unknown>("/me", {
         method: "PATCH",
         body: JSON.stringify({
@@ -98,8 +104,6 @@ export default function CadastroPage() {
           preferredPosition: data.posicaoPreferida || undefined,
         }),
       });
-
-      // Upload avatar if selected
       if (selectedFile) {
         const formData = new FormData();
         formData.append("avatar", selectedFile);
@@ -108,7 +112,6 @@ export default function CadastroPage() {
           body: formData,
         });
       }
-
       await mutate();
       router.push("/inicio");
     } catch {
@@ -116,7 +119,6 @@ export default function CadastroPage() {
     }
   }
 
-  // Compute initials for avatar preview
   const nomeValue = user?.name ?? "";
   const iniciais = nomeValue
     .split(" ")
@@ -126,40 +128,62 @@ export default function CadastroPage() {
     .join("");
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-[var(--space-lg)]">
-    <div className="bg-bg-surface rounded-[var(--radius-lg)] p-[var(--space-3xl)] flex flex-col gap-[var(--space-xl)] w-full max-w-[390px]">
-      <div className="flex flex-col gap-[var(--space-xs)]">
-        <h1 className="text-display-h1 text-text-primary">Complete seu perfil</h1>
-        <p className="text-body-regular text-text-secondary">
-          Adicione suas informações para entrar no racha.
-        </p>
+    <div className="min-h-screen flex flex-col bg-bg-app">
+
+      {/* Nav header */}
+      <div className="flex items-center gap-[var(--space-md)] p-[var(--space-lg)]">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-text-secondary hover:text-text-primary transition-colors"
+          aria-label="Voltar"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <span className="text-heading-h3 text-text-primary">Complete seu perfil</span>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-[var(--space-lg)]">
-        {/* Avatar upload */}
-        <div className="flex flex-col gap-[var(--space-sm)]">
-          <span className="text-caption-strong text-text-secondary">Foto</span>
-          <div className="flex items-center gap-[var(--space-lg)]">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex-1 flex flex-col"
+      >
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-[var(--space-lg)] flex flex-col gap-[var(--space-lg)]">
+
+          {/* Avatar */}
+          <div className="flex items-start gap-[var(--space-lg)]">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="focus:outline-none"
               aria-label="Selecionar foto de perfil"
+              className="shrink-0 focus:outline-none"
             >
-              <Avatar
-                iniciais={iniciais || "?"}
-                src={previewUrl ?? undefined}
-                size="LG"
-                className="cursor-pointer hover:opacity-80 transition-opacity"
-              />
+              {previewUrl ? (
+                <Avatar
+                  iniciais={iniciais || "?"}
+                  src={previewUrl}
+                  size="LG"
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                />
+              ) : (
+                <span className="flex items-center justify-center size-[88px] rounded-full border-2 border-dashed border-border-default bg-bg-raised hover:opacity-80 transition-opacity cursor-pointer">
+                  <Camera size={24} className="text-text-muted" aria-hidden />
+                </span>
+              )}
             </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-caption-strong text-accent-default underline"
-            >
-              {previewUrl ? "Trocar foto" : "Adicionar foto"}
-            </button>
+            <div className="flex flex-col gap-[var(--space-xs)] pt-[var(--space-xs)]">
+              <span className="text-body-strong text-text-primary">Foto de perfil</span>
+              <p className="text-caption-regular text-text-muted">
+                Opcional. Aparece nas listas e nos times. Sem foto, usamos suas iniciais.
+              </p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-caption-strong text-accent-default text-left"
+              >
+                {previewUrl ? "Trocar foto" : "Escolher foto"}
+              </button>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -168,53 +192,88 @@ export default function CadastroPage() {
               onChange={handleFileChange}
             />
           </div>
+
+          {/* Nome */}
+          <div className="flex flex-col gap-[var(--space-xs)]">
+            <Input
+              label="Nome completo"
+              placeholder="Seu nome"
+              aria-invalid={!!errors.nome}
+              {...register("nome")}
+            />
+            {errors.nome && (
+              <p className="text-caption-regular text-status-danger">
+                {errors.nome.message}
+              </p>
+            )}
+          </div>
+
+          {/* Apelido */}
+          <Input
+            label="Apelido nas listas"
+            placeholder="Como o pessoal te chama"
+            {...register("apelido")}
+          />
+
+          {/* Celular */}
+          <Input
+            label="Celular (WhatsApp)"
+            placeholder="(99) 99999-9999"
+            {...register("celular")}
+            onChange={(e) => {
+              e.target.value = formatPhone(e.target.value);
+              void setValue("celular", e.target.value, { shouldValidate: false });
+            }}
+          />
+
+          {/* Posição preferida — chip selector */}
+          <div className="flex flex-col gap-[var(--space-sm)]">
+            <span className="text-caption-strong text-text-secondary">Posição preferida</span>
+            <div className="flex gap-[var(--space-sm)] flex-wrap">
+              {POSITIONS.map((pos) => (
+                <button
+                  key={pos.value}
+                  type="button"
+                  onClick={() =>
+                    setValue(
+                      "posicaoPreferida",
+                      selectedPosition === pos.value ? "" : pos.value,
+                      { shouldValidate: false },
+                    )
+                  }
+                  className={[
+                    "px-[var(--space-md)] py-[var(--space-sm)] rounded-full text-caption-strong transition-colors",
+                    selectedPosition === pos.value
+                      ? "bg-accent-default text-text-on-accent"
+                      : "bg-bg-raised text-text-secondary border border-border-default hover:border-border-strong",
+                  ].join(" ")}
+                >
+                  {pos.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Disclaimer */}
+          <p className="text-caption-regular text-text-muted pb-[var(--space-lg)]">
+            Sua conta é liberada na hora. A aprovação do organizador só acontece quando
+            você pede vaga em uma sala.
+          </p>
         </div>
 
-        <Input
-          label="Nome completo"
-          placeholder="Ex: João da Silva"
-          aria-invalid={!!errors.nome}
-          {...register("nome")}
-        />
-        {errors.nome && (
-          <p className="text-caption-regular text-status-danger -mt-[var(--space-sm)]">
-            {errors.nome.message}
-          </p>
-        )}
-
-        <Input
-          label="Apelido"
-          placeholder="Ex: Joãozinho"
-          {...register("apelido")}
-        />
-
-        <Input
-          label="Celular"
-          placeholder="Ex: (99) 99999-9999"
-          {...register("celular")}
-          onChange={(e) => {
-            e.target.value = formatPhone(e.target.value);
-            void setValue("celular", e.target.value, { shouldValidate: false });
-          }}
-        />
-
-        <Input
-          label="Posição preferida"
-          placeholder="Ex: Meia, Atacante..."
-          {...register("posicaoPreferida")}
-        />
-
-        <Button
-          type="submit"
-          variant="Primary"
-          size="Large"
-          disabled={isSubmitting}
-          className="w-full mt-[var(--space-sm)]"
-        >
-          {isSubmitting ? "Salvando..." : "Salvar e entrar"}
-        </Button>
+        {/* Footer */}
+        <div className="px-[var(--space-lg)] py-[var(--space-lg)]">
+          <Button
+            type="submit"
+            variant="Primary"
+            size="Large"
+            disabled={isSubmitting}
+            className="w-full"
+          >
+            {isSubmitting ? "Salvando..." : "Criar conta"}
+          </Button>
+        </div>
       </form>
-    </div>
     </div>
   );
 }

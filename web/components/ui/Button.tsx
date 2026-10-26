@@ -31,7 +31,7 @@ export function Button({
     <button
       className={[
         "inline-flex items-center justify-center gap-[var(--space-sm)] font-semibold",
-        "transition-opacity disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed",
+        "transition active:scale-[.98] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed",
         variantClass[variant],
         sizeClass[size],
         className,

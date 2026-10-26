@@ -14,12 +14,14 @@ type MemberWithUser = RoomMember & {
     nickname: string | null;
     avatarUrl: string | null;
     preferredPosition: string | null;
+    phone: string | null;
   };
 };
 
 export type RoomWithCounts = Room & {
   confirmedLine: number;
   confirmedGoalkeepers: number;
+  pendingCount: number;
   myRole: string | null;
   myStatus: string | null;
 };
@@ -93,7 +95,7 @@ export async function listRooms(userId: string): Promise<RoomWithCounts[]> {
     },
     include: {
       members: {
-        where: { status: "CONFIRMED" },
+        where: { status: { in: ["CONFIRMED", "PENDING"] } },
         select: { playRole: true, userId: true, role: true, status: true },
       },
     },
@@ -101,8 +103,10 @@ export async function listRooms(userId: string): Promise<RoomWithCounts[]> {
   });
 
   return rooms.map((room) => {
-    const confirmedLine = room.members.filter((m) => m.playRole === "LINE").length;
-    const confirmedGoalkeepers = room.members.filter((m) => m.playRole === "GOALKEEPER").length;
+    const confirmedMembers = room.members.filter((m) => m.status === "CONFIRMED");
+    const confirmedLine = confirmedMembers.filter((m) => m.playRole === "LINE").length;
+    const confirmedGoalkeepers = confirmedMembers.filter((m) => m.playRole === "GOALKEEPER").length;
+    const pendingCount = room.members.filter((m) => m.status === "PENDING").length;
     const myMember = room.members.find((m) => m.userId === userId);
 
     const { members: _, ...roomFields } = room;
@@ -110,6 +114,7 @@ export async function listRooms(userId: string): Promise<RoomWithCounts[]> {
       ...roomFields,
       confirmedLine,
       confirmedGoalkeepers,
+      pendingCount,
       myRole: myMember?.role ?? null,
       myStatus: myMember?.status ?? null,
     };
@@ -129,6 +134,7 @@ export async function getRoom(roomId: string, userId: string): Promise<RoomDetai
               nickname: true,
               avatarUrl: true,
               preferredPosition: true,
+              phone: true,
             },
           },
         },
@@ -291,6 +297,19 @@ export async function cancelRoom(userId: string, roomId: string): Promise<Room> 
   } catch {}
 
   return updated;
+}
+
+export async function deleteRoom(userId: string, roomId: string): Promise<void> {
+  const member = await prisma.roomMember.findFirst({ where: { roomId, userId, role: "ORGANIZER" } });
+  if (!member) throw makeError("Apenas o organizador pode excluir a sala.", 403, "NOT_ORGANIZER");
+
+  const room = await prisma.room.findUnique({ where: { id: roomId }, select: { status: true } });
+  if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+  if (room.status !== "FINISHED") {
+    throw makeError("A sala só pode ser excluída após ser concluída.", 400, "ROOM_NOT_FINISHED");
+  }
+
+  await prisma.room.delete({ where: { id: roomId } });
 }
 
 export async function countVacancies(

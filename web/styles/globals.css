@@ -87,6 +87,25 @@
   --font-overline-weight: 600;
   --font-overline-line-height: 14px;
   --font-overline-letter-spacing: 6px;
+
+  /* Motion — fora do @theme para não colidir com o Tailwind v4 */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0.001ms;
+    --motion-base: 0.001ms;
+    --motion-slow: 0.001ms;
+  }
+  .skeleton-shimmer {
+    animation: none;
+    background: var(--color-bg-raised);
+  }
 }
 
 /* ─────────────────────────────────────────
@@ -175,10 +194,98 @@ html {
   line-height: var(--font-caption-strong-line-height);
 }
 
+.text-heading-h1 {
+  font-size: var(--font-display-h1-size);
+  font-weight: var(--font-display-h1-weight);
+  line-height: var(--font-display-h1-line-height);
+  letter-spacing: var(--font-display-h1-letter-spacing);
+}
+
 .text-overline {
   font-size: var(--font-overline-size);
   font-weight: var(--font-overline-weight);
   line-height: var(--font-overline-line-height);
   letter-spacing: var(--font-overline-letter-spacing);
   text-transform: uppercase;
+}
+
+/* ─────────────────────────────────────────
+   Keyframes
+   ───────────────────────────────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes list-item-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sheet-enter {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes sheet-exit {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes progress-loading {
+  0%   { width: 0%; }
+  100% { width: 85%; }
+}
+
+@keyframes progress-done {
+  0%   { width: 100%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+
+/* ─────────────────────────────────────────
+   Utilitários de animação
+   ───────────────────────────────────────── */
+.animate-page-enter {
+  animation: page-enter var(--motion-base) var(--ease-out) both;
+}
+
+.animate-list-item {
+  animation: list-item-enter var(--motion-fast) var(--ease-out) both;
+}
+
+.animate-sheet-enter {
+  animation: sheet-enter var(--motion-base) var(--ease-out) both;
+}
+
+.animate-sheet-exit {
+  animation: sheet-exit var(--motion-base) var(--ease-in-out) both;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-raised) 25%,
+    var(--color-bg-surface) 50%,
+    var(--color-bg-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.progress-bar-loading {
+  height: 100%;
+  animation: progress-loading 3s cubic-bezier(0.1, 0.05, 0, 1) forwards;
+  background-color: var(--color-accent-default);
+}
+
+.progress-bar-done {
+  height: 100%;
+  width: 100%;
+  animation: progress-done 0.4s ease-out forwards;
+  background-color: var(--color-accent-default);
 }

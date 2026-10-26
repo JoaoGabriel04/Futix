@@ -5,7 +5,7 @@ export function LandingNav() {
   return (
     <nav className="flex shrink-0 items-center gap-[var(--space-lg)] overflow-hidden px-5 pb-3 pt-12 md:px-[120px] md:py-5">
       <Link href="/" className="flex shrink-0 items-center gap-[var(--space-sm)]">
-        <Image src="/logo-futix.png" alt="Futix" width={36} height={36} />
+        <Image src="/logo-futix.webp" alt="Futix" width={36} height={36} />
         <span className="text-[17px] font-semibold leading-[22px] text-text-primary">Futix</span>
       </Link>
 

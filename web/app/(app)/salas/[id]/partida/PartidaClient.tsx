@@ -19,6 +19,8 @@ import { Badge } from "../../../../../components/ui/Badge";
 import { Button } from "../../../../../components/ui/Button";
 import { WeightChip } from "../../../../../components/ui/WeightChip";
 import { GoalSheet } from "./GoalSheet";
+import PartidaLoading from "./loading";
+import { EmptyState } from "../../../../../components/ui/EmptyState";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +35,8 @@ interface MatchEventPayload {
   serverNow: string;
   scoreA: number;
   scoreB: number;
+  winnerTeamId?: string | null;
+  endReason?: string | null;
 }
 
 interface LocalEvent {
@@ -103,6 +107,11 @@ export function PartidaClient({ id }: PartidaClientProps) {
   const sessionRef = useRef(session);
   useEffect(() => { sessionRef.current = session; }, [session]);
 
+  // Force fresh session on every mount — bypasses dedupingInterval after back-navigation
+  useEffect(() => {
+    void mutateSession();
+  }, [mutateSession]);
+
   const match = session?.currentMatch ?? null;
 
   // Keep prevScoreRef in sync with the latest known score from SWR
@@ -121,7 +130,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
 
   useEffect(() => {
     if (matchesList && matchesList.length > 0 && !finishedMatch) {
-      const last = matchesList[0];
+      const last = matchesList[matchesList.length - 1];
       setFinishedMatch(last ?? null);
     }
   }, [matchesList, finishedMatch]);
@@ -204,7 +213,6 @@ export function PartidaClient({ id }: PartidaClientProps) {
 
     function handleMatchEnded(data: MatchEventPayload) {
       offsetRef.current = new Date(data.serverNow).getTime() - Date.now();
-      // Capture match state before mutateSession clears currentMatch
       const currentMatch = sessionRef.current?.currentMatch;
       if (currentMatch) {
         setFinishedMatch({
@@ -212,6 +220,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
           status: "FINISHED",
           scoreA: data.scoreA,
           scoreB: data.scoreB,
+          winnerTeamId: data.winnerTeamId ?? null,
         });
       }
       mutateSession();
@@ -256,11 +265,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
   // ---------------------------------------------------------------------------
   // Loading / empty states
   // ---------------------------------------------------------------------------
-  if (sessionLoading || roomLoading) {
-    return (
-      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">Carregando...</p>
-    );
-  }
+  if (sessionLoading || roomLoading) return <PartidaLoading />;
 
   if (!session || (!session.currentMatch && !session.lastRotation)) {
     return (
@@ -273,7 +278,10 @@ export function PartidaClient({ id }: PartidaClientProps) {
         >
           <ArrowLeft size={22} />
         </button>
-        <p className="text-body-regular text-text-muted">Nenhuma partida em andamento.</p>
+        <EmptyState
+          title="Nenhuma partida em andamento"
+          description="Aguarde o organizador iniciar a partida."
+        />
       </div>
     );
   }
@@ -303,7 +311,12 @@ export function PartidaClient({ id }: PartidaClientProps) {
 
   // FINISHED state
   const isFinishedState = !match && !!session.lastRotation;
-  const effectiveFinishedMatch = finishedMatch ?? (matchesList?.[0] ?? null);
+  const effectiveFinishedMatch = finishedMatch ?? (matchesList?.[matchesList.length - 1] ?? null);
+
+  function resolveMemberName(userId: string): string {
+    const member = room?.members.find((m) => m.userId === userId);
+    return member?.user.nickname ?? member?.user.name ?? userId;
+  }
 
   // ---------------------------------------------------------------------------
   // Action handlers
@@ -427,12 +440,6 @@ export function PartidaClient({ id }: PartidaClientProps) {
     const swaps = rotation.swaps as SwapEntry[];
     const hasSwaps = swaps && swaps.length > 0 && rotation.kind !== "NONE";
 
-    // Helper to resolve member name
-    function resolveMemberName(userId: string): string {
-      const member = room?.members.find((m) => m.user.id === userId);
-      return member?.user.nickname ?? member?.user.name ?? userId;
-    }
-
     // Next match teams
     const courtTeams = rotation.courtAfter
       .map((tid) => session.teams.find((t) => t.id === tid)?.name ?? "?");
@@ -471,7 +478,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
             </div>
 
             {/* Result card */}
-            <div className="bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
+            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
               <div className="flex items-center justify-center gap-[var(--space-lg)]">
                 <p className="text-body-strong text-text-primary text-right flex-1">{finTeamA?.name ?? ""}</p>
                 <p className={`text-display-h1 ${winnerIsA ? "text-accent-default" : "text-text-primary"}`}>
@@ -487,118 +494,122 @@ export function PartidaClient({ id }: PartidaClientProps) {
             </div>
 
             {/* TROCAS SORTEADAS section */}
-            <div className="bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
+            <div className="flex flex-col gap-[var(--space-sm)]">
               <p className="text-overline text-text-muted">Trocas sorteadas</p>
-
-              {!hasSwaps ? (
-                <p className="text-caption-regular text-text-muted">Sem trocas nesta rodada.</p>
-              ) : (
-                <>
-                  {/* Description text */}
-                  {(() => {
-                    const firstSwap = swaps[0];
-                    if (!firstSwap) return null;
-                    return (
-                      <p className="text-caption-regular text-text-secondary">
-                        {session.teams.find((t) => t.id === firstSwap.teamId)?.name ?? "Time"} perdeu e troca{" "}
-                        {firstSwap.outPlayerIds.length} jogador{firstSwap.outPlayerIds.length !== 1 ? "es" : ""} com{" "}
-                        {session.teams.find((t) => t.id === firstSwap.withTeamId)?.name ?? "Time"}, a última barreira,
-                        por peso equivalente.
-                      </p>
-                    );
-                  })()}
-
-                  {/* Swap rows */}
-                  {swaps.map((swap, swapIdx) => {
-                    const loserTeamName = session.teams.find((t) => t.id === swap.teamId)?.name ?? "?";
-                    const barrierTeamName = session.teams.find((t) => t.id === swap.withTeamId)?.name ?? "?";
-                    return swap.outPlayerIds.map((outId, pairIdx) => {
-                      const inId = swap.inPlayerIds[pairIdx];
-                      const outPlayerName = resolveMemberName(outId);
-                      const inPlayerName = inId ? resolveMemberName(inId) : "?";
-                      const outLevel = isOrgOrCoOrg ? weights.find((w) => w.playerId === outId)?.level : undefined;
-                      const inLevel = isOrgOrCoOrg && inId ? weights.find((w) => w.playerId === inId)?.level : undefined;
-
+              <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]">
+                {!hasSwaps ? (
+                  <p className="text-caption-regular text-text-muted">Sem trocas nesta rodada.</p>
+                ) : (
+                  <>
+                    {/* Description text */}
+                    {(() => {
+                      const firstSwap = swaps[0];
+                      if (!firstSwap) return null;
                       return (
-                        <div
-                          key={`${swapIdx}-${pairIdx}`}
-                          className="bg-bg-raised rounded-[var(--radius-md)] p-[var(--space-md)] flex items-center gap-[8px]"
-                        >
-                          {/* Left side: loser player */}
-                          <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
-                            <p className="text-caption-regular text-text-muted">Sai do {loserTeamName}</p>
-                            <div className="flex items-center gap-[var(--space-sm)]">
-                              <p className="text-body-strong text-text-primary">{outPlayerName}</p>
-                              {isOrgOrCoOrg && outLevel && <WeightChip level={outLevel} />}
-                            </div>
-                          </div>
-                          <ArrowLeftRight size={18} className="text-text-muted shrink-0" />
-                          {/* Right side: barrier player */}
-                          <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
-                            <p className="text-caption-regular text-text-muted">Sai do {barrierTeamName}</p>
-                            <div className="flex items-center gap-[var(--space-sm)]">
-                              <p className="text-body-strong text-text-primary">{inPlayerName}</p>
-                              {isOrgOrCoOrg && inLevel && <WeightChip level={inLevel} />}
-                            </div>
-                          </div>
-                        </div>
+                        <p className="text-caption-regular text-text-secondary">
+                          {session.teams.find((t) => t.id === firstSwap.teamId)?.name ?? "Time"} perdeu e troca{" "}
+                          {firstSwap.outPlayerIds.length} jogador{firstSwap.outPlayerIds.length !== 1 ? "es" : ""} com{" "}
+                          {session.teams.find((t) => t.id === firstSwap.withTeamId)?.name ?? "Time"}, a última barreira,
+                          por peso equivalente.
+                        </p>
                       );
-                    });
-                  })}
-                </>
-              )}
+                    })()}
+
+                    {/* Swap rows */}
+                    {swaps.map((swap, swapIdx) => {
+                      const loserTeamName = session.teams.find((t) => t.id === swap.teamId)?.name ?? "?";
+                      const barrierTeamName = session.teams.find((t) => t.id === swap.withTeamId)?.name ?? "?";
+                      return swap.outPlayerIds.map((outId, pairIdx) => {
+                        const inId = swap.inPlayerIds[pairIdx];
+                        const outPlayerName = resolveMemberName(outId);
+                        const inPlayerName = inId ? resolveMemberName(inId) : "?";
+                        const outLevel = isOrgOrCoOrg ? weights.find((w) => w.playerId === outId)?.level : undefined;
+                        const inLevel = isOrgOrCoOrg && inId ? weights.find((w) => w.playerId === inId)?.level : undefined;
+
+                        return (
+                          <div
+                            key={`${swapIdx}-${pairIdx}`}
+                            className="bg-bg-raised rounded-[var(--radius-md)] p-[var(--space-md)] flex items-center gap-[var(--space-sm)]"
+                          >
+                            {/* Left side: loser player */}
+                            <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
+                              <p className="text-caption-regular text-text-muted">Sai do {loserTeamName}</p>
+                              <div className="flex items-center gap-[var(--space-sm)]">
+                                <p className="text-body-strong text-text-primary">{outPlayerName}</p>
+                                {isOrgOrCoOrg && outLevel && <WeightChip level={outLevel} />}
+                              </div>
+                            </div>
+                            <ArrowLeftRight size={18} className="text-text-muted shrink-0" />
+                            {/* Right side: barrier player */}
+                            <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
+                              <p className="text-caption-regular text-text-muted">Sai do {barrierTeamName}</p>
+                              <div className="flex items-center gap-[var(--space-sm)]">
+                                <p className="text-body-strong text-text-primary">{inPlayerName}</p>
+                                {isOrgOrCoOrg && inLevel && <WeightChip level={inLevel} />}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
           {/* RIGHT COLUMN */}
           <div className="flex flex-col gap-[var(--space-lg)]">
-            {/* PRÓXIMA PARTIDA card */}
-            <div className="bg-accent-subtle border border-accent-default rounded-lg p-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
+            {/* PRÓXIMA PARTIDA section */}
+            <div className="flex flex-col gap-[var(--space-sm)]">
               <p className="text-overline text-text-muted">Próxima partida</p>
-              <div className="flex items-center gap-[var(--space-md)]">
-                <p className="text-caption-strong text-text-secondary flex-1">
-                  Partida {nextMatchNumber}
-                </p>
-                <p className="text-heading-h3 text-text-primary">{courtTeams.join(" x ")}</p>
+              <div className="bg-accent-subtle border border-accent-default rounded-[var(--radius-lg)] p-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]">
+                <div className="flex items-center gap-[var(--space-md)]">
+                  <p className="text-body-strong text-text-secondary flex-1">
+                    Partida {nextMatchNumber}
+                  </p>
+                  <p className="text-heading-h3 text-text-primary">{courtTeams.join(" x ")}</p>
+                </div>
+                {queueNames.length > 0 && (
+                  <p className="text-caption-regular text-text-secondary">
+                    Fila depois: {queueNames.join(", ")}
+                  </p>
+                )}
               </div>
-              {queueNames.length > 0 && (
-                <p className="text-caption-regular text-text-secondary">
-                  Fila depois: {queueNames.join(", ")}
-                </p>
-              )}
             </div>
 
-            {/* Start next match button — org/co-org only, visible in right column on desktop */}
+            {/* Desktop-only org actions (hidden on mobile — shown in bottom bar) */}
             {isOrgOrCoOrg && (
-              <Button
-                variant="Primary"
-                size="Large"
-                className="w-full hidden lg:flex"
-                onClick={handleStartNextMatch}
-                disabled={loadingStart}
-              >
-                {loadingStart ? "Iniciando..." : `Iniciar partida ${nextMatchNumber}`}
-              </Button>
-            )}
-
-            {/* Finish room button — org/co-org only, visible in right column on desktop */}
-            {isOrgOrCoOrg && (
-              <Button
-                variant="Ghost"
-                size="Large"
-                className="w-full hidden lg:flex"
-                onClick={handleFinishRoom}
-                disabled={loadingFinish}
-              >
-                {loadingFinish ? "Encerrando..." : "Encerrar sala"}
-              </Button>
+              <div className="hidden lg:flex flex-col gap-[var(--space-sm)]">
+                <Button
+                  variant="Primary"
+                  size="Large"
+                  className="w-full"
+                  onClick={handleStartNextMatch}
+                  disabled={loadingStart}
+                >
+                  {loadingStart ? "Iniciando..." : `Iniciar partida ${nextMatchNumber}`}
+                </Button>
+                <Button
+                  variant="Ghost"
+                  size="Large"
+                  className="w-full"
+                  onClick={handleFinishRoom}
+                  disabled={loadingFinish}
+                >
+                  {loadingFinish ? "Encerrando..." : "Encerrar sala"}
+                </Button>
+              </div>
             )}
           </div>
         </div>
 
         {/* Bottom action bar — org/co-org only, mobile */}
         {isOrgOrCoOrg && (
-          <div className="bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)] lg:hidden flex flex-col gap-[var(--space-sm)]">
+          <div
+            className="bg-bg-sidebar border-t border-border-default pt-[var(--space-md)] px-[var(--space-lg)] lg:hidden flex flex-col gap-[var(--space-sm)]"
+            style={{ paddingBottom: "max(var(--space-2xl), env(safe-area-inset-bottom))" }}
+          >
             <Button
               variant="Primary"
               size="Large"
@@ -607,15 +618,6 @@ export function PartidaClient({ id }: PartidaClientProps) {
               disabled={loadingStart}
             >
               {loadingStart ? "Iniciando..." : `Iniciar partida ${nextMatchNumber}`}
-            </Button>
-            <Button
-              variant="Ghost"
-              size="Large"
-              className="w-full"
-              onClick={handleFinishRoom}
-              disabled={loadingFinish}
-            >
-              {loadingFinish ? "Encerrando..." : "Encerrar sala"}
             </Button>
           </div>
         )}
@@ -661,7 +663,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
           {/* Timer card */}
           <div
             className={[
-              "bg-bg-surface border border-border-default rounded-lg p-[var(--space-lg)]",
+              "bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[var(--space-lg)]",
               "flex flex-col items-center gap-[var(--space-xs)]",
             ].join(" ")}
           >
@@ -684,7 +686,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
                   key={teamId}
                   className={[
                     "flex-1 flex flex-col items-center gap-[var(--space-sm)]",
-                    "p-[var(--space-lg)] rounded-lg border",
+                    "p-[var(--space-lg)] rounded-[var(--radius-lg)] border",
                     isLeading
                       ? "bg-accent-subtle border-accent-default"
                       : "bg-bg-surface border-border-default",
@@ -706,6 +708,21 @@ export function PartidaClient({ id }: PartidaClientProps) {
               );
             })}
           </div>
+
+          {/* Player roster — side-by-side under team cards */}
+          {match && room && (
+            <div className="flex gap-[var(--space-md)]">
+              {[match.teamAPlayerIds, match.teamBPlayerIds].map((playerIds, idx) => (
+                <ul key={idx} className="flex-1 flex flex-col gap-[var(--space-xs)]">
+                  {playerIds.map((pid) => (
+                    <li key={pid} className="text-caption-regular text-text-secondary truncate">
+                      {resolveMemberName(pid)}
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* RIGHT COLUMN */}
@@ -715,7 +732,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
             <p className="text-overline text-text-muted">LANCES</p>
             <div
               className={[
-                "bg-bg-surface border border-border-default rounded-lg",
+                "bg-bg-surface border border-border-default rounded-[var(--radius-lg)]",
                 "p-[var(--space-lg)] flex flex-col gap-[var(--space-md)]",
               ].join(" ")}
             >
@@ -723,11 +740,11 @@ export function PartidaClient({ id }: PartidaClientProps) {
                 <p className="text-caption-regular text-text-muted">Aguardando lances...</p>
               ) : (
                 localEvents.map((event) => (
-                  <div key={event.id} className="flex flex-col gap-[var(--space-xs)]">
-                    <div className="flex items-baseline gap-[var(--space-sm)]">
-                      <span className="text-caption-strong text-text-muted">
-                        {formatSeconds(event.atSecond)}
-                      </span>
+                  <div key={event.id} className="flex gap-[var(--space-md)] items-center">
+                    <span className="text-caption-strong text-text-muted shrink-0">
+                      {formatSeconds(event.atSecond)}
+                    </span>
+                    <div className="flex-1 flex flex-col gap-[var(--space-xs)]">
                       <span
                         className={[
                           "text-body-strong",
@@ -736,10 +753,10 @@ export function PartidaClient({ id }: PartidaClientProps) {
                       >
                         {event.title}
                       </span>
+                      {event.subtitle ? (
+                        <p className="text-caption-regular text-text-secondary">{event.subtitle}</p>
+                      ) : null}
                     </div>
-                    {event.subtitle ? (
-                      <p className="text-caption-regular text-text-secondary">{event.subtitle}</p>
-                    ) : null}
                   </div>
                 ))
               )}
@@ -756,7 +773,7 @@ export function PartidaClient({ id }: PartidaClientProps) {
                     key={team.id}
                     className={[
                       "bg-bg-raised border border-border-default rounded-full",
-                      "px-[var(--space-md)] py-[8px]",
+                      "px-[var(--space-md)] py-[var(--space-sm)]",
                       "text-caption-strong text-text-primary",
                     ].join(" ")}
                   >
@@ -772,11 +789,8 @@ export function PartidaClient({ id }: PartidaClientProps) {
       {/* Bottom action bar — org/co-org only, not FINISHED */}
       {isOrgOrCoOrg && match && match.status !== "FINISHED" && (
         <div
-          className={[
-            "bg-bg-sidebar border-t border-border-default",
-            "pt-[12px] pb-[24px] px-[var(--space-lg)]",
-            "flex flex-col gap-[var(--space-sm)]",
-          ].join(" ")}
+          className="bg-bg-sidebar border-t border-border-default pt-[var(--space-md)] px-[var(--space-lg)] flex flex-col gap-[var(--space-sm)]"
+          style={{ paddingBottom: "max(var(--space-2xl), env(safe-area-inset-bottom))" }}
         >
           {/* Row 1: Desfazer + Pausar/Retomar */}
           <div className="flex gap-[var(--space-md)]">

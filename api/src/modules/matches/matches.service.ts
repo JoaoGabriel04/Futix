@@ -51,6 +51,8 @@ interface MatchStatePayload {
   serverNow: string;
   scoreA: number;
   scoreB: number;
+  winnerTeamId: string | null;
+  endReason: string | null;
 }
 
 // ── matchState helper ──────────────────────────────────────────────────────────
@@ -66,6 +68,8 @@ function matchState(match: MatchForOrg): MatchStatePayload {
     serverNow: now,
     scoreA: match.scoreA,
     scoreB: match.scoreB,
+    winnerTeamId: match.winnerTeamId,
+    endReason: match.endReason,
   };
 }
 

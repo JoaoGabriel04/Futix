@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { preload } from "swr";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "../../../components/ui/Button";
 import { MatchCard } from "../../../components/domain/MatchCard";
+import PartidasLoading from "./loading";
+import { EmptyState } from "../../../components/ui/EmptyState";
+import { ErrorState } from "../../../components/ui/ErrorState";
 import { useRooms } from "../../../hooks/useRooms";
 import type { RoomSummary } from "../../../hooks/useRooms";
+import { apiFetch } from "../../../lib/api";
+import { keys } from "../../../lib/keys";
 
 function statusToBadge(
   r: RoomSummary,
@@ -30,16 +36,13 @@ function totalConfirmed(r: RoomSummary): number {
 
 export default function PartidasPage() {
   const router = useRouter();
-  const { rooms, isLoading } = useRooms();
+  const { rooms, isLoading, error, mutate } = useRooms();
 
-  if (isLoading) {
-    return (
-      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">Carregando...</p>
-    );
-  }
+  if (isLoading) return <PartidasLoading />;
+  if (error) return <ErrorState onRetry={() => mutate()} />;
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-[var(--space-lg)] lg:p-[var(--space-3xl)] flex flex-col gap-[var(--space-lg)]">
+    <div className="animate-page-enter w-full max-w-2xl mx-auto p-[var(--space-lg)] lg:p-[var(--space-3xl)] flex flex-col gap-[var(--space-lg)]">
       {/* Header */}
       <div className="flex items-center justify-between gap-[var(--space-md)]">
         <h1 className="text-heading-h2 text-text-primary">Partidas</h1>
@@ -54,24 +57,15 @@ export default function PartidasPage() {
       </div>
 
       {rooms.length === 0 ? (
-        /* Empty state */
-        <div className="flex flex-col items-center gap-[var(--space-lg)] py-[var(--space-3xl)]">
-          <p className="text-body-regular text-text-muted">
-            Você ainda não participa de nenhuma partida.
-          </p>
-          <Button
-            variant="Primary"
-            size="Large"
-            type="button"
-            onClick={() => router.push("/salas/criar")}
-          >
-            Criar sala
-          </Button>
-        </div>
+        <EmptyState
+          title="Nenhuma partida ainda"
+          description="Você ainda não participa de nenhuma sala."
+          action={{ label: "Criar sala", onClick: () => router.push("/salas/criar") }}
+        />
       ) : (
         /* Room list */
         <div className="flex flex-col gap-[var(--space-lg)]">
-          {rooms.map((r) => {
+          {rooms.map((r, index) => {
             const quando = format(new Date(r.startsAt), "d 'de' MMMM, HH:mm", { locale: ptBR });
             const total = totalSlots(r);
             const confirmed = totalConfirmed(r);
@@ -80,7 +74,14 @@ export default function PartidasPage() {
 
             const badgeStatus = statusToBadge(r);
             return (
-              <Link key={r.id} href={`/salas/${r.id}`} className="block">
+              <Link
+                key={r.id}
+                href={`/salas/${r.id}`}
+                className="block animate-list-item"
+                style={{ animationDelay: `${Math.min(index, 5) * 40}ms` }}
+                onMouseEnter={() => preload(keys.room(r.id), (path) => apiFetch(path))}
+                onFocus={() => preload(keys.room(r.id), (path) => apiFetch(path))}
+              >
                 <MatchCard
                   titulo={r.title}
                   quando={quando}

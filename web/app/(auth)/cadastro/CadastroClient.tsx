@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { Shield, Shuffle, Timer } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Input } from "../../../components/ui/Input";
+import { GoogleIcon, DiscordIcon } from "../../../components/ui/SocialIcons";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -84,16 +86,10 @@ export function CadastroClient() {
     }
   }
 
-  const inputClass =
-    "h-[52px] w-full rounded-[var(--radius-md)] border border-border-default bg-bg-surface px-[var(--space-lg)] text-[15px] leading-[22px] text-text-primary placeholder:text-text-muted outline-none focus:border-accent-default";
-
-  const labelClass =
-    "text-[13px] font-semibold leading-[18px] text-text-secondary";
-
   return (
     <div className="flex min-h-screen">
-      {/* ── Left panel — branding (desktop only) ─────────────────────── */}
-      <div className="relative hidden w-[720px] shrink-0 flex-col justify-between overflow-hidden bg-bg-sidebar px-20 py-14 md:flex">
+      {/* Left panel — branding (lg+ only) */}
+      <div className="relative hidden w-[720px] shrink-0 flex-col justify-between overflow-hidden bg-bg-sidebar px-20 py-14 lg:flex">
         {/* Decorative circles */}
         <div
           aria-hidden
@@ -123,10 +119,8 @@ export function CadastroClient() {
 
         {/* Logo */}
         <div className="relative flex items-center gap-[var(--space-sm)]">
-          <Image src="/logo-futix.png" alt="Futix" width={40} height={40} />
-          <span className="text-[22px] font-bold leading-[28px] text-text-primary">
-            Futix
-          </span>
+          <Image src="/logo-futix.webp" alt="Futix" width={40} height={40} />
+          <span className="text-heading-h2 text-text-primary">Futix</span>
         </div>
 
         {/* Headline + features */}
@@ -147,48 +141,42 @@ export function CadastroClient() {
                 <div className="flex shrink-0 size-9 items-center justify-center rounded-[var(--radius-md)] bg-accent-subtle">
                   <Icon size={18} className="text-accent-default" />
                 </div>
-                <span className="text-[15px] font-semibold leading-[22px] text-text-primary">
-                  {label}
-                </span>
+                <span className="text-body-strong text-text-primary">{label}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Footer */}
-        <p className="relative text-[13px] leading-[18px] text-text-muted">
+        <p className="relative text-caption-regular text-text-muted">
           Grátis, feito para o futebol da comunidade.
         </p>
       </div>
 
-      {/* ── Right panel / mobile full ─────────────────────────────────── */}
+      {/* Right panel / mobile full */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-1 flex-col gap-[var(--space-lg)] overflow-hidden bg-bg-app pt-4 px-[var(--space-lg)] pb-[var(--space-2xl)] md:items-center md:justify-center md:px-0 md:pt-0 md:bg-transparent">
+        <div className="flex flex-1 flex-col gap-[var(--space-lg)] overflow-hidden bg-bg-app pt-4 px-[var(--space-lg)] pb-[var(--space-2xl)] lg:items-center lg:justify-center lg:px-0 lg:pt-0 lg:bg-transparent">
 
-          {/* Mobile: logo (hidden on desktop) */}
-          <div className="flex items-center gap-[var(--space-sm)] md:hidden">
+          {/* Mobile: logo (hidden on lg+) */}
+          <div className="flex items-center gap-[var(--space-sm)] lg:hidden">
             <Image
-              src="/logo-futix.png"
+              src="/logo-futix.webp"
               alt="Futix"
               width={32}
               height={32}
               className="rounded-xl"
             />
-            <span className="text-[17px] font-semibold leading-[22px] text-text-primary">
-              Futix
-            </span>
+            <span className="text-body-strong text-text-primary">Futix</span>
           </div>
 
           {/* Heading block */}
-          <div className="flex flex-col gap-[var(--space-sm)] md:w-[400px]">
-            <h1 className="text-[28px] font-bold leading-[34px] text-text-primary md:text-[36px] md:leading-[42px]">
-              Criar conta
-            </h1>
-            <p className="text-[15px] leading-[22px] text-text-secondary md:hidden">
+          <div className="flex flex-col gap-[var(--space-sm)] lg:w-[400px]">
+            <h1 className="text-heading-h1 text-text-primary">Criar conta</h1>
+            <p className="text-body-regular text-text-secondary lg:hidden">
               Leva menos de um minuto. A aprovação só acontece quando você pede
               para entrar numa sala.
             </p>
-            <p className="hidden text-[15px] leading-[22px] text-text-secondary md:block">
+            <p className="hidden text-body-regular text-text-secondary lg:block">
               Cadastro livre. A aprovação só acontece quando você pede para
               entrar numa sala.
             </p>
@@ -197,63 +185,52 @@ export function CadastroClient() {
           {/* Form */}
           <form
             onSubmit={handleSubmit}
-            className="flex w-full flex-col gap-[var(--space-lg)] md:w-[400px]"
+            className="flex w-full flex-col gap-[var(--space-lg)] lg:w-[400px]"
           >
-            {/* Nome */}
-            <div className="flex flex-col gap-[var(--space-sm)]">
-              <label htmlFor="name" className={labelClass}>Nome</label>
-              <input
-                id="name"
-                type="text"
-                placeholder="Seu nome completo"
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={inputClass}
-              />
-            </div>
+            <Input
+              label="Nome"
+              id="name"
+              type="text"
+              placeholder="Seu nome completo"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
 
-            {/* E-mail */}
-            <div className="flex flex-col gap-[var(--space-sm)]">
-              <label htmlFor="email" className={labelClass}>E-mail</label>
-              <input
-                id="email"
-                type="email"
-                placeholder="voce@email.com"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={inputClass}
-              />
-            </div>
+            <Input
+              label="E-mail"
+              id="email"
+              type="email"
+              placeholder="voce@email.com"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
 
-            {/* Senha + Confirmar senha: stacked on mobile, side-by-side on desktop */}
-            <div className="flex flex-col gap-[var(--space-lg)] md:flex-row md:gap-[var(--space-md)]">
-              <div className="flex flex-col gap-[var(--space-sm)] md:flex-1">
-                <label htmlFor="password" className={labelClass}>Senha</label>
-                <input
-                  id="password"
-                  type="password"
-                  placeholder="Mínimo de 8 caracteres"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div className="flex flex-col gap-[var(--space-sm)] md:flex-1">
-                <label htmlFor="confirmPassword" className={labelClass}>Confirmar senha</label>
-                <input
+            {/* Senha + Confirmar senha: stacked on mobile, side-by-side on lg+ */}
+            <div className="flex flex-col gap-[var(--space-lg)] lg:flex-row lg:gap-[var(--space-md)]">
+              <Input
+                className="lg:flex-1"
+                label="Senha"
+                id="password"
+                type="password"
+                placeholder="Mínimo de 8 caracteres"
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <div className="flex flex-col gap-[var(--space-sm)] lg:flex-1">
+                <Input
+                  label="Confirmar senha"
                   id="confirmPassword"
                   type="password"
                   placeholder="Repita a senha"
                   autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={inputClass}
                 />
                 {confirmError && (
-                  <span className="text-[13px] leading-[18px] text-status-danger">
+                  <span className="text-caption-regular text-status-danger">
                     {confirmError}
                   </span>
                 )}
@@ -262,13 +239,13 @@ export function CadastroClient() {
 
             {/* Inline error */}
             {error && (
-              <span className="text-[13px] leading-[18px] text-status-danger">
+              <span className="text-caption-regular text-status-danger">
                 {error}
               </span>
             )}
 
             {/* Termos */}
-            <p className="text-[13px] leading-[18px] text-text-muted">
+            <p className="text-caption-regular text-text-muted">
               Ao criar a conta você concorda com os termos de uso da plataforma.
             </p>
 
@@ -276,7 +253,7 @@ export function CadastroClient() {
             <button
               type="submit"
               disabled={loading}
-              className="h-[52px] w-full rounded-[var(--radius-md)] bg-accent-default text-[15px] font-semibold text-text-on-accent disabled:opacity-60"
+              className="h-[52px] w-full rounded-[var(--radius-md)] bg-accent-default text-body-strong text-text-on-accent disabled:opacity-60"
             >
               {loading ? "Criando conta..." : "Criar conta"}
             </button>
@@ -284,38 +261,34 @@ export function CadastroClient() {
             {/* Divider */}
             <div className="flex items-center gap-[var(--space-md)]">
               <div className="h-px flex-1 bg-border-default" />
-              <span className="text-[13px] leading-[18px] text-text-muted">
+              <span className="text-caption-regular text-text-muted">
                 ou continue com
               </span>
               <div className="h-px flex-1 bg-border-default" />
             </div>
 
-            {/* Social buttons */}
-            <div className="flex flex-col gap-[var(--space-md)] md:flex-row md:gap-[var(--space-sm)]">
+            {/* Social buttons: stacked on mobile, side-by-side on lg+ */}
+            <div className="flex flex-col gap-[var(--space-md)] lg:flex-row lg:gap-[var(--space-sm)]">
               <a
                 href={`${apiUrl}/auth/google`}
-                className="flex h-[52px] md:flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-[15px] font-semibold leading-[22px] text-text-primary"
+                className="flex h-[52px] lg:flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-body-strong text-text-primary"
               >
-                <span className="flex size-6 items-center justify-center rounded-full bg-accent-subtle text-[13px] font-semibold text-accent-default md:hidden">
-                  G
-                </span>
-                <span className="md:hidden">Continuar com Google</span>
-                <span className="hidden md:inline">Google</span>
+                <GoogleIcon />
+                <span className="lg:hidden">Continuar com Google</span>
+                <span className="hidden lg:inline">Google</span>
               </a>
               <a
                 href={`${apiUrl}/auth/discord`}
-                className="flex h-[52px] md:flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-[15px] font-semibold leading-[22px] text-text-primary"
+                className="flex h-[52px] lg:flex-1 items-center justify-center gap-[var(--space-md)] rounded-[var(--radius-md)] border border-border-default bg-bg-raised text-body-strong text-text-primary"
               >
-                <span className="flex size-6 items-center justify-center rounded-full bg-accent-subtle text-[13px] font-semibold text-accent-default md:hidden">
-                  D
-                </span>
-                <span className="md:hidden">Continuar com Discord</span>
-                <span className="hidden md:inline">Discord</span>
+                <DiscordIcon />
+                <span className="lg:hidden">Continuar com Discord</span>
+                <span className="hidden lg:inline">Discord</span>
               </a>
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-center gap-[var(--space-xs)] text-[13px] leading-[18px]">
+            <div className="flex items-center justify-center gap-[var(--space-xs)] text-caption-regular">
               <span className="text-text-secondary">Já tem conta?</span>
               <Link href="/entrar" className="font-semibold text-accent-default">
                 Entrar

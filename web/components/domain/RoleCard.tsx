@@ -6,19 +6,20 @@ import { Check } from "lucide-react";
 interface RoleCardProps {
   icon: LucideIcon;
   label: string;
+  description?: string;
   selected: boolean;
   onClick: () => void;
   disabled?: boolean;
 }
 
-export function RoleCard({ icon: Icon, label, selected, onClick, disabled }: RoleCardProps) {
+export function RoleCard({ icon: Icon, label, description, selected, onClick, disabled }: RoleCardProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       className={[
-        "relative flex flex-col gap-[var(--space-md)] p-[var(--space-lg)] rounded-lg w-full text-left transition-colors",
+        "flex items-center gap-[var(--space-md)] p-[var(--space-lg)] rounded-[var(--radius-md)] w-full text-left transition-colors",
         "disabled:opacity-40 disabled:cursor-not-allowed",
         selected
           ? "border-2 border-accent-default bg-accent-subtle"
@@ -27,37 +28,46 @@ export function RoleCard({ icon: Icon, label, selected, onClick, disabled }: Rol
         .filter(Boolean)
         .join(" ")}
     >
-      {selected && (
-        <span className="absolute top-[var(--space-sm)] right-[var(--space-sm)] flex items-center justify-center size-5 rounded-full bg-accent-default">
-          <Check size={12} className="text-text-on-accent" aria-hidden />
-        </span>
-      )}
-
+      {/* Icon container */}
       <span
         className={[
-          "flex items-center justify-center size-10 rounded-full",
-          selected ? "bg-accent-subtle" : "bg-bg-raised",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          "flex items-center justify-center size-12 rounded-full shrink-0",
+          selected ? "bg-accent-default" : "bg-bg-raised",
+        ].join(" ")}
       >
         <Icon
-          size={20}
-          className={selected ? "text-accent-default" : "text-text-muted"}
+          size={22}
+          className={selected ? "text-text-on-accent" : "text-text-muted"}
           aria-hidden
         />
       </span>
 
-      <p
+      {/* Text */}
+      <div className="flex flex-col flex-1 min-w-0">
+        <p
+          className={[
+            "text-body-strong",
+            selected ? "text-accent-default" : "text-text-primary",
+          ].join(" ")}
+        >
+          {label}
+        </p>
+        {description && (
+          <p className="text-caption-regular text-text-muted mt-[2px]">{description}</p>
+        )}
+      </div>
+
+      {/* Selection indicator */}
+      <span
         className={[
-          "text-body-strong",
-          selected ? "text-accent-default" : "text-text-primary",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          "size-5 rounded-full border-2 shrink-0 flex items-center justify-center",
+          selected
+            ? "border-accent-default bg-accent-default"
+            : "border-border-default bg-transparent",
+        ].join(" ")}
       >
-        {label}
-      </p>
+        {selected && <Check size={10} className="text-text-on-accent" aria-hidden />}
+      </span>
     </button>
   );
 }

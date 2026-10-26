@@ -16,6 +16,7 @@ type RoomMemberSummary = {
     nickname: string | null;
     avatarUrl: string | null;
     preferredPosition: string | null;
+    phone: string | null;
   };
 };
 

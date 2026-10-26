@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { RoomMemberSummary } from "../../../../../hooks/useRoom";
 import { addGoal } from "../../../../../lib/matchApi";
+import * as RadixSwitch from "@radix-ui/react-switch";
 import { BottomSheet } from "../../../../../components/ui/BottomSheet";
 import { Button } from "../../../../../components/ui/Button";
 
@@ -109,7 +110,7 @@ export function GoalSheet({
               type="button"
               onClick={() => setScorerId(scorerId === pid ? null : pid)}
               className={[
-                "px-[var(--space-md)] py-[8px] rounded-full border text-caption-strong",
+                "px-[var(--space-md)] py-[var(--space-sm)] rounded-full border text-caption-strong",
                 scorerId === pid
                   ? "bg-accent-default border-accent-default text-text-on-accent"
                   : "bg-bg-raised border-border-default text-text-primary",
@@ -131,7 +132,7 @@ export function GoalSheet({
               type="button"
               onClick={() => setAssistId(null)}
               className={[
-                "px-[var(--space-md)] py-[8px] rounded-full border text-caption-strong",
+                "px-[var(--space-md)] py-[var(--space-sm)] rounded-full border text-caption-strong",
                 assistId === null
                   ? "bg-accent-default border-accent-default text-text-on-accent"
                   : "bg-bg-raised border-border-default text-text-primary",
@@ -146,7 +147,7 @@ export function GoalSheet({
                 type="button"
                 onClick={() => setAssistId(assistId === pid ? null : pid)}
                 className={[
-                  "px-[var(--space-md)] py-[8px] rounded-full border text-caption-strong",
+                  "px-[var(--space-md)] py-[var(--space-sm)] rounded-full border text-caption-strong",
                   assistId === pid
                     ? "bg-accent-default border-accent-default text-text-on-accent"
                     : "bg-bg-raised border-border-default text-text-primary",
@@ -165,18 +166,19 @@ export function GoalSheet({
           <p className="text-body-strong text-text-primary">Gol contra</p>
           <p className="text-caption-regular text-text-secondary">Conta para o outro time</p>
         </div>
-        <input
-          type="checkbox"
-          role="switch"
+        <RadixSwitch.Root
           checked={isOwnGoal}
-          onChange={(e) => setIsOwnGoal(e.target.checked)}
-          className="w-[44px] h-[26px] cursor-pointer appearance-none rounded-full bg-border-default checked:bg-accent-default transition-colors relative"
-        />
+          onCheckedChange={setIsOwnGoal}
+          aria-label="Gol contra"
+          className="relative inline-flex h-[28px] w-[48px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent bg-border-default transition-colors data-[state=checked]:bg-accent-default focus:outline-none focus:ring-2 focus:ring-accent-default focus:ring-offset-2"
+        >
+          <RadixSwitch.Thumb className="pointer-events-none block h-[20px] w-[20px] translate-x-[2px] rounded-full bg-white shadow-md transition-transform data-[state=checked]:translate-x-[22px]" />
+        </RadixSwitch.Root>
       </div>
 
       {/* Error message */}
       {error && (
-        <p className="text-caption-regular text-red-500">{error}</p>
+        <p className="text-caption-regular text-status-danger">{error}</p>
       )}
 
       {/* Confirm button */}

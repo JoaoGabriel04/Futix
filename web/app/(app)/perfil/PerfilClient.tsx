@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, LogOut, Mail, Phone, Target, Trash2, User } from "lucide-react";
+import { Camera, ImageIcon, LogOut, Mail, Phone, Target, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../../components/ui/Button";
+import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { Input } from "../../../components/ui/Input";
+import { GoogleIcon, DiscordIcon } from "../../../components/ui/SocialIcons";
 import { apiFetch } from "../../../lib/api";
 import { useMe } from "../../../hooks/useMe";
+import PerfilLoading from "./loading";
 
 function isConnected(
   connections: { google: boolean; discord: boolean; password: boolean } | undefined,
@@ -34,6 +37,8 @@ export function PerfilClient() {
 
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
+  const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [dName, setDName] = useState("");
   const [dNickname, setDNickname] = useState("");
@@ -130,7 +135,7 @@ export function PerfilClient() {
     }
   }
 
-  if (isLoading) return <p className="text-text-muted p-[var(--space-lg)]">Carregando...</p>;
+  if (isLoading) return <PerfilLoading />;
 
   const iniciais = (user?.name ?? "")
     .split(" ")
@@ -142,9 +147,9 @@ export function PerfilClient() {
   return (
     <div className="w-full">
       {/* Mobile — lg:hidden */}
-      <div className="lg:hidden flex flex-col pt-[20px] pb-[24px] px-[16px] gap-[16px]">
+      <div className="lg:hidden flex flex-col pt-[var(--space-xl)] pb-[var(--space-2xl)] px-[var(--space-lg)] gap-[var(--space-lg)]">
         {/* Hero card */}
-        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-xl)] px-[16px] py-[20px] flex flex-col gap-[16px] items-center">
+        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-xl)] px-[var(--space-lg)] py-[var(--space-xl)] flex flex-col gap-[var(--space-lg)] items-center">
           <div className="relative size-[96px]">
             <div className="absolute inset-0 bg-accent-subtle border-2 border-accent-default rounded-full flex items-center justify-center overflow-hidden">
               {user?.avatarUrl ? (
@@ -156,7 +161,7 @@ export function PerfilClient() {
             <button
               type="button"
               aria-label="Alterar foto"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowPhotoSheet(true)}
               className="absolute size-[34px] left-[62px] top-[62px] bg-accent-default rounded-full flex items-center justify-center"
               style={{ border: "3px solid var(--color-bg-app)" }}
             >
@@ -164,30 +169,30 @@ export function PerfilClient() {
             </button>
           </div>
 
-          <p className="text-[22px] font-bold text-text-primary">{user?.name}</p>
+          <p className="text-heading-h2 text-text-primary">{user?.name}</p>
           {user?.nickname && (
-            <p className="text-[15px] text-text-secondary">@{user.nickname}</p>
+            <p className="text-body-regular text-text-secondary">@{user.nickname}</p>
           )}
 
           {user?.preferredPosition && (
-            <div className="flex gap-[8px] items-center">
-              <span className="bg-accent-default border border-accent-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-on-accent">
+            <div className="flex gap-[var(--space-sm)] items-center">
+              <span className="bg-accent-default border border-accent-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-on-accent">
                 {user.preferredPosition}
               </span>
               {user.preferredPosition !== "Goleiro" && (
-                <span className="bg-bg-raised border border-border-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-primary">
+                <span className="bg-bg-raised border border-border-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-primary">
                   Jogador de linha
                 </span>
               )}
             </div>
           )}
 
-          <div className="flex gap-[12px] w-full">
+          <div className="flex gap-[var(--space-md)] w-full">
             <Button
               variant="Secondary"
               size="Small"
               className="flex-1"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowPhotoSheet(true)}
               disabled={isUploadingAvatar}
             >
               {isUploadingAvatar ? "Enviando..." : "Alterar foto"}
@@ -204,96 +209,92 @@ export function PerfilClient() {
         </div>
 
         {/* Dados pessoais */}
-        <p className="text-[11px] font-semibold tracking-[0.66px] uppercase text-text-muted">
-          DADOS PESSOAIS
-        </p>
+        <p className="text-overline text-text-muted">DADOS PESSOAIS</p>
 
-        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[16px] py-[8px]">
-          <div className="flex gap-[12px] items-center py-[12px]">
+        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[var(--space-lg)] py-[var(--space-sm)]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <User size={18} className="text-text-muted shrink-0" />
-            <div className="flex flex-col gap-[4px] flex-1">
-              <span className="text-[13px] text-text-muted">Nome</span>
-              <span className="text-[15px] font-semibold text-text-primary">{user?.name ?? "—"}</span>
+            <div className="flex flex-col gap-[var(--space-xs)] flex-1">
+              <span className="text-caption-regular text-text-muted">Nome</span>
+              <span className="text-body-strong text-text-primary">{user?.name ?? "—"}</span>
             </div>
           </div>
           <div className="h-px bg-border-default" />
-          <div className="flex gap-[12px] items-center py-[12px]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <Target size={18} className="text-text-muted shrink-0" />
-            <div className="flex flex-col gap-[4px] flex-1">
-              <span className="text-[13px] text-text-muted">Posição preferida</span>
-              <span className="text-[15px] font-semibold text-text-primary">{user?.preferredPosition ?? "—"}</span>
+            <div className="flex flex-col gap-[var(--space-xs)] flex-1">
+              <span className="text-caption-regular text-text-muted">Posição preferida</span>
+              <span className="text-body-strong text-text-primary">{user?.preferredPosition ?? "—"}</span>
             </div>
           </div>
           <div className="h-px bg-border-default" />
-          <div className="flex gap-[12px] items-center py-[12px]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <Phone size={18} className="text-text-muted shrink-0" />
-            <div className="flex flex-col gap-[4px] flex-1">
-              <span className="text-[13px] text-text-muted">Celular</span>
-              <span className="text-[15px] font-semibold text-text-primary">{user?.phone ?? "—"}</span>
+            <div className="flex flex-col gap-[var(--space-xs)] flex-1">
+              <span className="text-caption-regular text-text-muted">Celular</span>
+              <span className="text-body-strong text-text-primary">{user?.phone ?? "—"}</span>
             </div>
           </div>
           <div className="h-px bg-border-default" />
-          <div className="flex gap-[12px] items-center py-[12px]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <Mail size={18} className="text-text-muted shrink-0" />
-            <div className="flex flex-col gap-[4px] flex-1">
-              <span className="text-[13px] text-text-muted">E-mail</span>
-              <span className="text-[15px] font-semibold text-text-primary">{user?.email ?? "—"}</span>
+            <div className="flex flex-col gap-[var(--space-xs)] flex-1">
+              <span className="text-caption-regular text-text-muted">E-mail</span>
+              <span className="text-body-strong text-text-primary">{user?.email ?? "—"}</span>
             </div>
           </div>
         </div>
 
         {/* Contas conectadas */}
-        <p className="text-[11px] font-semibold tracking-[0.66px] uppercase text-text-muted">
-          CONTAS CONECTADAS
-        </p>
+        <p className="text-overline text-text-muted">CONTAS CONECTADAS</p>
 
-        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[16px] py-[8px]">
-          <div className="flex gap-[12px] items-center py-[12px]">
+        <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[var(--space-lg)] py-[var(--space-sm)]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-              <span className="text-[13px] font-semibold text-text-secondary">G</span>
+              <GoogleIcon size={18} />
             </div>
-            <span className="flex-1 text-[15px] font-semibold text-text-primary">Google</span>
+            <span className="flex-1 text-body-strong text-text-primary">Google</span>
             {isConnected(user?.connections, "GOOGLE") ? (
-              <span className="bg-status-success-subtle px-[8px] py-[2px] rounded-full text-[13px] font-semibold text-status-success">
+              <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
                 Conectado
               </span>
             ) : (
               <a
                 href={`${apiUrl}/auth/google?link=1`}
-                className="text-[13px] font-semibold text-accent-default"
+                className="text-caption-strong text-accent-default"
               >
                 Conectar
               </a>
             )}
           </div>
           <div className="h-px bg-border-default" />
-          <div className="flex gap-[12px] items-center py-[12px]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-              <span className="text-[13px] font-semibold text-text-secondary">D</span>
+              <DiscordIcon size={18} />
             </div>
-            <span className="flex-1 text-[15px] font-semibold text-text-primary">Discord</span>
+            <span className="flex-1 text-body-strong text-text-primary">Discord</span>
             {isConnected(user?.connections, "DISCORD") ? (
-              <span className="bg-status-success-subtle px-[8px] py-[2px] rounded-full text-[13px] font-semibold text-status-success">
+              <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
                 Conectado
               </span>
             ) : (
               <a
                 href={`${apiUrl}/auth/discord?link=1`}
-                className="text-[13px] font-semibold text-accent-default"
+                className="text-caption-strong text-accent-default"
               >
                 Conectar
               </a>
             )}
           </div>
           <div className="h-px bg-border-default" />
-          <div className="flex gap-[12px] items-center py-[12px]">
+          <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
             <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
               <Mail size={16} className="text-text-secondary" />
             </div>
-            <span className="flex-1 text-[15px] font-semibold text-text-primary">E-mail e senha</span>
+            <span className="flex-1 text-body-strong text-text-primary">E-mail e senha</span>
             <Link
               href="/perfil/editar"
-              className="text-[13px] font-semibold text-accent-default"
+              className="text-caption-strong text-accent-default"
             >
               {user?.connections?.password ? "Alterar senha" : "Criar senha"}
             </Link>
@@ -301,27 +302,27 @@ export function PerfilClient() {
         </div>
 
         {/* Logout */}
-        <Button variant="Danger" size="Large" className="w-full py-[14px]" onClick={handleLogout}>
+        <Button variant="Danger" size="Large" className="w-full" onClick={handleLogout}>
           <LogOut size={18} />
           Sair da conta
         </Button>
       </div>
 
       {/* Desktop — hidden lg:flex */}
-      <div className="hidden lg:flex flex-col px-[48px] py-[40px] gap-[20px] flex-1">
+      <div className="hidden lg:flex flex-col px-[48px] py-[40px] gap-[var(--space-xl)] flex-1">
         {/* Header */}
-        <div>
-          <h1 className="text-[28px] font-bold text-text-primary">Perfil</h1>
-          <p className="text-[15px] text-text-secondary mt-[4px]">
+        <div className="flex flex-col gap-[var(--space-xs)]">
+          <h1 className="text-heading-h2 text-text-primary">Perfil</h1>
+          <p className="text-body-regular text-text-secondary">
             Seus dados aparecem para os organizadores das salas em que você pede para entrar.
           </p>
         </div>
 
         {/* Two-column row */}
-        <div className="flex gap-[20px] items-start">
+        <div className="flex gap-[var(--space-xl)] items-start">
           {/* Left column — avatar card */}
           <div className="w-[360px] shrink-0">
-            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[20px] flex flex-col gap-[16px] items-center">
+            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[var(--space-xl)] flex flex-col gap-[var(--space-lg)] items-center">
               <div className="relative size-[128px]">
                 <div className="absolute inset-0 bg-accent-subtle border-2 border-accent-default rounded-full flex items-center justify-center overflow-hidden">
                   {user?.avatarUrl ? (
@@ -341,18 +342,18 @@ export function PerfilClient() {
                 </button>
               </div>
 
-              <p className="text-[22px] font-bold text-text-primary">{user?.name}</p>
+              <p className="text-heading-h2 text-text-primary">{user?.name}</p>
               {user?.nickname && (
-                <p className="text-[15px] text-text-secondary">@{user.nickname}</p>
+                <p className="text-body-regular text-text-secondary">@{user.nickname}</p>
               )}
 
               {user?.preferredPosition && (
-                <div className="flex gap-[8px] items-center">
-                  <span className="bg-accent-default border border-accent-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-on-accent">
+                <div className="flex gap-[var(--space-sm)] items-center">
+                  <span className="bg-accent-default border border-accent-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-on-accent">
                     {user.preferredPosition}
                   </span>
                   {user.preferredPosition !== "Goleiro" && (
-                    <span className="bg-bg-raised border border-border-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-primary">
+                    <span className="bg-bg-raised border border-border-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-primary">
                       Jogador de linha
                     </span>
                   )}
@@ -369,29 +370,27 @@ export function PerfilClient() {
                 {isUploadingAvatar ? "Enviando..." : "Alterar foto"}
               </Button>
 
-              {user?.avatarUrl && (
-                <button
-                  type="button"
-                  onClick={handleDeleteAvatar}
-                  disabled={isDeletingAvatar}
-                  className="flex gap-[8px] items-center justify-center w-full disabled:opacity-40"
-                >
-                  <Trash2 size={16} className="text-status-danger" />
-                  <span className="text-[13px] font-semibold text-status-danger">
-                    {isDeletingAvatar ? "Removendo..." : "Remover foto"}
-                  </span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleDeleteAvatar}
+                disabled={isDeletingAvatar || !user?.avatarUrl}
+                className="flex gap-[var(--space-sm)] items-center justify-center w-full disabled:opacity-40"
+              >
+                <Trash2 size={16} className="text-status-danger" />
+                <span className="text-caption-strong text-status-danger">
+                  {isDeletingAvatar ? "Removendo..." : "Remover foto"}
+                </span>
+              </button>
             </div>
           </div>
 
           {/* Right column */}
-          <div className="flex-1 flex flex-col gap-[20px]">
+          <div className="flex-1 flex flex-col gap-[var(--space-xl)]">
             {/* Dados pessoais card */}
-            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[20px] flex flex-col gap-[16px]">
-              <p className="text-[17px] font-semibold text-text-primary">Dados pessoais</p>
+            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] p-[var(--space-xl)] flex flex-col gap-[var(--space-lg)]">
+              <p className="text-body-strong text-text-primary">Dados pessoais</p>
 
-              <div className="flex gap-[16px]">
+              <div className="flex gap-[var(--space-lg)]">
                 <Input
                   className="flex-1"
                   label="Nome"
@@ -406,7 +405,7 @@ export function PerfilClient() {
                 />
               </div>
 
-              <div className="flex gap-[16px]">
+              <div className="flex gap-[var(--space-lg)]">
                 <Input
                   className="flex-1"
                   label="Celular"
@@ -421,9 +420,9 @@ export function PerfilClient() {
                 />
               </div>
 
-              <div className="flex flex-col gap-[8px]">
-                <p className="text-[13px] font-semibold text-text-secondary">Posição preferida</p>
-                <div className="flex gap-[8px]">
+              <div className="flex flex-col gap-[var(--space-sm)]">
+                <p className="text-caption-strong text-text-secondary">Posição preferida</p>
+                <div className="flex gap-[var(--space-sm)]">
                   {["Goleiro", "Defensor", "Meia", "Atacante"].map((pos) => (
                     <button
                       key={pos}
@@ -431,8 +430,8 @@ export function PerfilClient() {
                       onClick={() => setDPosition(pos === dPosition ? "" : pos)}
                       className={
                         pos === dPosition
-                          ? "bg-accent-default border border-accent-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-on-accent"
-                          : "bg-bg-raised border border-border-default rounded-full px-[12px] py-[8px] text-[13px] font-semibold text-text-primary"
+                          ? "bg-accent-default border border-accent-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-on-accent"
+                          : "bg-bg-raised border border-border-default rounded-full px-[var(--space-md)] py-[var(--space-sm)] text-caption-strong text-text-primary"
                       }
                     >
                       {pos}
@@ -441,7 +440,7 @@ export function PerfilClient() {
                 </div>
               </div>
 
-              <div className="flex gap-[12px] justify-end">
+              <div className="flex gap-[var(--space-md)] justify-end">
                 <Button variant="Ghost" size="Large" onClick={handleDesktopCancel}>
                   Cancelar
                 </Button>
@@ -457,25 +456,25 @@ export function PerfilClient() {
             </div>
 
             {/* Contas conectadas card */}
-            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[20px] py-[4px]">
-              <p className="py-[12px] text-[17px] font-semibold text-text-primary">
+            <div className="bg-bg-surface border border-border-default rounded-[var(--radius-lg)] px-[var(--space-xl)] py-[var(--space-xs)]">
+              <p className="py-[var(--space-md)] text-body-strong text-text-primary">
                 Contas conectadas
               </p>
               <div className="h-px bg-border-default" />
 
-              <div className="flex gap-[12px] items-center py-[12px]">
+              <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
                 <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-[13px] font-semibold text-text-secondary">G</span>
+                  <span className="text-caption-strong text-text-secondary">G</span>
                 </div>
-                <span className="flex-1 text-[15px] font-semibold text-text-primary">Google</span>
+                <span className="flex-1 text-body-strong text-text-primary">Google</span>
                 {isConnected(user?.connections, "GOOGLE") ? (
-                  <span className="bg-status-success-subtle px-[8px] py-[2px] rounded-full text-[13px] font-semibold text-status-success">
+                  <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
                     Conectado
                   </span>
                 ) : (
                   <a
                     href={`${apiUrl}/auth/google?link=1`}
-                    className="text-[13px] font-semibold text-accent-default"
+                    className="text-caption-strong text-accent-default"
                   >
                     Conectar
                   </a>
@@ -483,19 +482,19 @@ export function PerfilClient() {
               </div>
               <div className="h-px bg-border-default" />
 
-              <div className="flex gap-[12px] items-center py-[12px]">
+              <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
                 <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-[13px] font-semibold text-text-secondary">D</span>
+                  <span className="text-caption-strong text-text-secondary">D</span>
                 </div>
-                <span className="flex-1 text-[15px] font-semibold text-text-primary">Discord</span>
+                <span className="flex-1 text-body-strong text-text-primary">Discord</span>
                 {isConnected(user?.connections, "DISCORD") ? (
-                  <span className="bg-status-success-subtle px-[8px] py-[2px] rounded-full text-[13px] font-semibold text-status-success">
+                  <span className="bg-status-success-subtle px-[var(--space-sm)] py-[var(--space-xs)] rounded-full text-caption-strong text-status-success">
                     Conectado
                   </span>
                 ) : (
                   <a
                     href={`${apiUrl}/auth/discord?link=1`}
-                    className="text-[13px] font-semibold text-accent-default"
+                    className="text-caption-strong text-accent-default"
                   >
                     Conectar
                   </a>
@@ -503,14 +502,14 @@ export function PerfilClient() {
               </div>
               <div className="h-px bg-border-default" />
 
-              <div className="flex gap-[12px] items-center py-[12px]">
+              <div className="flex gap-[var(--space-md)] items-center py-[var(--space-md)]">
                 <div className="size-[32px] bg-bg-raised rounded-full flex items-center justify-center shrink-0">
                   <Mail size={16} className="text-text-secondary" />
                 </div>
-                <span className="flex-1 text-[15px] font-semibold text-text-primary">E-mail e senha</span>
+                <span className="flex-1 text-body-strong text-text-primary">E-mail e senha</span>
                 <Link
                   href="/perfil/editar"
-                  className="text-[13px] font-semibold text-accent-default"
+                  className="text-caption-strong text-accent-default"
                 >
                   {user?.connections?.password ? "Alterar senha" : "Criar senha"}
                 </Link>
@@ -526,11 +525,71 @@ export function PerfilClient() {
         </div>
       </div>
 
+      {/* Photo options sheet — mobile */}
+      <BottomSheet open={showPhotoSheet} onClose={() => setShowPhotoSheet(false)}>
+        <div className="flex flex-col gap-[var(--space-md)] items-center">
+          <p className="text-heading-h2 text-text-primary">Foto de perfil</p>
+          <div className="size-[88px] bg-accent-subtle border-2 border-accent-default rounded-full flex items-center justify-center overflow-hidden">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt={iniciais} className="size-full object-cover" />
+            ) : (
+              <span className="text-[30px] font-bold text-accent-default">{iniciais || "?"}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-[var(--space-xs)] w-full">
+          <button
+            type="button"
+            className="flex gap-[var(--space-md)] items-center bg-bg-raised px-[var(--space-md)] py-[var(--space-md)] rounded-[var(--radius-md)] w-full"
+            onClick={() => { setShowPhotoSheet(false); cameraInputRef.current?.click(); }}
+          >
+            <Camera size={20} className="text-text-primary shrink-0" />
+            <span className="text-body-strong text-text-primary">Tirar foto</span>
+          </button>
+          <button
+            type="button"
+            className="flex gap-[var(--space-md)] items-center bg-bg-raised px-[var(--space-md)] py-[var(--space-md)] rounded-[var(--radius-md)] w-full"
+            onClick={() => { setShowPhotoSheet(false); fileInputRef.current?.click(); }}
+          >
+            <ImageIcon size={20} className="text-text-primary shrink-0" />
+            <span className="text-body-strong text-text-primary">Escolher da galeria</span>
+          </button>
+          {user?.avatarUrl && (
+            <button
+              type="button"
+              className="flex gap-[var(--space-md)] items-center bg-bg-raised px-[var(--space-md)] py-[var(--space-md)] rounded-[var(--radius-md)] w-full"
+              onClick={() => { setShowPhotoSheet(false); handleDeleteAvatar(); }}
+            >
+              <Trash2 size={20} className="text-status-danger shrink-0" />
+              <span className="text-body-strong text-status-danger">Remover foto</span>
+            </button>
+          )}
+        </div>
+
+        <p className="text-caption-regular text-text-muted text-center w-full">
+          JPG, PNG ou WEBP, até 2 MB.
+        </p>
+
+        <Button variant="Ghost" size="Large" className="w-full" onClick={() => setShowPhotoSheet(false)}>
+          Cancelar
+        </Button>
+      </BottomSheet>
+
       {/* Shared file input */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleAvatarChange}
+      />
+      {/* Camera capture input — mobile "Tirar foto" */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="user"
         className="hidden"
         onChange={handleAvatarChange}
       />

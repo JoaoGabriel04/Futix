@@ -26,7 +26,7 @@ export function PlayerRow({ nome, posicao, iniciais, avatarSrc, status, classNam
 
       <div className="flex flex-col min-w-0 flex-1">
         <p className="text-body-strong text-text-primary truncate">{nome}</p>
-        <p className="text-caption-regular text-text-muted">{posicao}</p>
+        {posicao && <p className="text-caption-regular text-text-muted">{posicao}</p>}
       </div>
 
       <Badge status={status} className="shrink-0" />

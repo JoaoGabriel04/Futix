@@ -25,9 +25,10 @@ export function AppHeader() {
     <header className="lg:hidden sticky top-0 z-10 flex items-center gap-[var(--space-md)] bg-bg-surface border-b border-border-default px-[16px] py-[12px] shrink-0">
       <div className="relative size-[36px] rounded-[var(--radius-md)] overflow-hidden shrink-0">
         <Image
-          src="/logo-futix.png"
+          src="/logo-futix.webp"
           alt="Futix"
           fill
+          sizes="36px"
           className="object-contain"
           priority
         />

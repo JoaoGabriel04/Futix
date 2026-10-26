@@ -65,11 +65,10 @@ export function Sidebar({
       {/* Logo */}
       <div className="flex gap-[var(--space-md)] items-center">
         <Image
-          src="/logo-futix-transparent.png"
+          src="/logo-futix-transparent.webp"
           alt="Futix"
           width={36}
           height={36}
-          unoptimized
           className="shrink-0"
         />
         <span className="text-heading-h2 text-text-primary">Futix</span>

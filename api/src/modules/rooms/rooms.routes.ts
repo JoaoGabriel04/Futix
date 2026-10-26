@@ -11,6 +11,7 @@ import {
   unlockRoomHandler,
   cancelRoomHandler,
   finishRoomHandler,
+  deleteRoomHandler,
   getRoomSessionHandler,
   getRoomSummaryHandler,
 } from "./rooms.controller.js";
@@ -25,6 +26,7 @@ router.post("/rooms/:id/lock", requireAuth, requireOrganizerRole, lockRoomHandle
 router.post("/rooms/:id/unlock", requireAuth, requireOrganizerRole, unlockRoomHandler);
 router.post("/rooms/:id/cancel", requireAuth, cancelRoomHandler);
 router.post("/rooms/:id/finish", requireAuth, requireOrganizerRole, finishRoomHandler);
+router.delete("/rooms/:id", requireAuth, deleteRoomHandler);
 router.get("/rooms/:id/session", requireAuth, getRoomSessionHandler);
 router.get("/rooms/:id/summary", requireAuth, getRoomSummaryHandler);
 

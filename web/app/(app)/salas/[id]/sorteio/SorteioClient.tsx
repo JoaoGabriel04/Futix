@@ -8,6 +8,8 @@ import { useDraw } from "../../../../../hooks/useDraw";
 import { apiFetch } from "../../../../../lib/api";
 import { startMatch } from "../../../../../lib/matchApi";
 import { Button } from "../../../../../components/ui/Button";
+import SorteioLoading from "./loading";
+import { ErrorState } from "../../../../../components/ui/ErrorState";
 import { WeightChip } from "../../../../../components/ui/WeightChip";
 
 interface SorteioClientProps {
@@ -39,29 +41,11 @@ export function SorteioClient({ id }: SorteioClientProps) {
 
   const isLoading = roomLoading || drawLoading;
 
-  if (isLoading) {
-    return (
-      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">
-        Carregando...
-      </p>
-    );
-  }
+  if (isLoading) return <SorteioLoading />;
 
-  if (!room) {
-    return (
-      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">
-        Sala não encontrada.
-      </p>
-    );
-  }
+  if (!room) return <ErrorState message="Sala não encontrada." />;
 
-  if (draw === null) {
-    return (
-      <p className="text-body-regular text-text-muted p-[var(--space-lg)]">
-        Nenhum sorteio realizado ainda.
-      </p>
-    );
-  }
+  if (draw === null) return <ErrorState message="Nenhum sorteio encontrado para esta sala." />;
 
   const isOrgOrCoOrg =
     room.myMember?.role === "ORGANIZER" || room.myMember?.role === "CO_ORGANIZER";

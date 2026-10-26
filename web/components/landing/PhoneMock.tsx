@@ -9,7 +9,7 @@ export function PhoneMock() {
         <div className="flex h-full flex-col">
           {/* App Header */}
           <div className="flex shrink-0 items-center gap-3 border-b border-border-default bg-bg-surface px-4 pb-3 pt-12">
-            <Image src="/logo-futix.png" alt="" width={36} height={36} className="rounded-xl" />
+            <Image src="/logo-futix.webp" alt="" width={36} height={36} className="rounded-xl" />
             <span className="text-[17px] font-semibold leading-[22px] text-text-primary">Futix</span>
             <div className="flex-1" />
             <div className="flex size-10 items-center justify-center rounded-full border border-border-default bg-bg-raised">

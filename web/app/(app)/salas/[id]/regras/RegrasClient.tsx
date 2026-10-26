@@ -144,7 +144,7 @@ export function RegrasClient({ id }: RegrasClientProps) {
       </div>
 
       {/* Action bar */}
-      <div className="bg-bg-sidebar border-t border-border-default pt-[12px] pb-[24px] px-[var(--space-lg)]">
+      <div className="bg-bg-sidebar border-t border-border-default pt-[var(--space-md)] pb-[var(--space-2xl)] px-[var(--space-lg)]">
         <Button
           variant="Primary"
           size="Large"

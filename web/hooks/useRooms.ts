@@ -16,6 +16,7 @@ type RoomSummary = {
   status: string;
   confirmedLine: number;
   confirmedGoalkeepers: number;
+  pendingCount: number;
   myRole: string | null;     // ORGANIZER | CO_ORGANIZER | PLAYER | null
   myStatus: string | null;   // CONFIRMED | PENDING | WAITLIST | REJECTED | LEFT | null
 };

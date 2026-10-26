@@ -119,6 +119,9 @@ model Room {
   maxStarsPerTeam  Int          @default(3)
   startedAt        DateTime?
   finishedAt       DateTime?
+
+  @@index([ownerId])
+  @@index([status, startsAt])
 }
 
 model RoomMember {
