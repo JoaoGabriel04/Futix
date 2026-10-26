@@ -13,7 +13,7 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
   if (ct) headers.set("content-type", ct);
   if (accessToken) headers.set("cookie", `access_token=${accessToken}`);
 
-  let body: BodyInit | undefined;
+  let body: BodyInit | null = null;
   if (request.method !== "GET" && request.method !== "HEAD") {
     const buf = await request.arrayBuffer();
     if (buf.byteLength > 0) body = buf;
