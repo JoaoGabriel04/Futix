@@ -76,8 +76,11 @@ export async function resolveOAuthIdentity(
         // Race condition: identity was created between our two queries — treat as success
         return { user: existingUser, isNew: false };
       }
-      // Email belongs to another account without this identity → block
-      throw new EmailInUseOtherMethodError();
+      // Email já existe → vincula este provider à conta existente e loga normalmente
+      await prisma.authIdentity.create({
+        data: { userId: existingUser.id, provider, providerId },
+      });
+      return { user: existingUser, isNew: false };
     }
   }
 
