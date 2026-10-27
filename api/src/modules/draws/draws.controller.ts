@@ -16,7 +16,13 @@ export async function handleStartRoom(
   }
 
   try {
-    const result = await startRoom(req.userId, roomId);
+    const body = req.body as { absentMemberIds?: unknown };
+    const absentMemberIds =
+      Array.isArray(body?.absentMemberIds) &&
+      body.absentMemberIds.every((x) => typeof x === "string")
+        ? (body.absentMemberIds as string[])
+        : [];
+    const result = await startRoom(req.userId, roomId, absentMemberIds);
     res.status(201).json(result);
   } catch (err) {
     next(err);

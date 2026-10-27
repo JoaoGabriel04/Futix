@@ -310,7 +310,7 @@ export async function removeCoOrganizer(
 
 /**
  * Remove a member from a room (organizer-initiated).
- * ORGANIZER cannot be removed. PENDING/WAITLIST → deleted; otherwise → LEFT.
+ * ORGANIZER cannot be removed. PENDING/WAITLIST → deleted; otherwise → REMOVED.
  */
 export async function removeMember(
   _removerId: string,
@@ -319,6 +319,7 @@ export async function removeMember(
 ): Promise<void> {
   const member = await prisma.roomMember.findFirst({
     where: { id: memberId, roomId },
+    include: { room: { select: { status: true } } },
   });
 
   if (!member) {
@@ -331,10 +332,71 @@ export async function removeMember(
 
   if (member.status === "PENDING" || member.status === "WAITLIST") {
     await prisma.roomMember.delete({ where: { id: memberId } });
+  } else if (
+    member.room.status === "DRAWN" ||
+    member.room.status === "LIVE"
+  ) {
+    // In DRAWN/LIVE: mark as REMOVED so the slot can be tracked as open in the team
+    await prisma.roomMember.update({
+      where: { id: memberId },
+      data: { status: "REMOVED" },
+    });
+    try {
+      const { getIo } = await import("../../socket.js");
+      getIo()
+        .to(`room:${roomId}`)
+        .emit("member:updated", { memberId, status: "REMOVED" });
+    } catch {}
   } else {
     await prisma.roomMember.update({
       where: { id: memberId },
       data: { status: "LEFT" },
     });
   }
+}
+
+/**
+ * R55 — Mark a confirmed member as absent (NO_SHOW) during DRAWN or LIVE.
+ * Organizer-initiated; never triggers auto-promotion (R58).
+ */
+export async function markAbsent(
+  _actorId: string,
+  roomId: string,
+  memberId: string,
+): Promise<RoomMember> {
+  const member = await prisma.roomMember.findFirst({
+    where: { id: memberId, roomId },
+    include: { room: { select: { status: true } } },
+  });
+
+  if (!member) {
+    throw makeError("Membro não encontrado.", 404, "NOT_FOUND");
+  }
+
+  if (member.role === "ORGANIZER") {
+    throw makeError("Não é possível marcar o organizador como ausente.", 403, "CANNOT_MARK_ORGANIZER");
+  }
+
+  if (member.status !== "CONFIRMED") {
+    throw makeError("Apenas membros confirmados podem ser marcados como ausentes.", 400, "INVALID_STATUS");
+  }
+
+  const allowedRoomStatuses = ["OPEN", "LOCKED", "DRAWN", "LIVE"] as const;
+  if (!(allowedRoomStatuses as readonly string[]).includes(member.room.status)) {
+    throw makeError("Não é possível marcar ausência neste estado da sala.", 400, "INVALID_ROOM_STATUS");
+  }
+
+  const updated = await prisma.roomMember.update({
+    where: { id: memberId },
+    data: { status: "NO_SHOW" },
+  });
+
+  try {
+    const { getIo } = await import("../../socket.js");
+    getIo()
+      .to(`room:${roomId}`)
+      .emit("member:updated", { memberId, status: "NO_SHOW" });
+  } catch {}
+
+  return updated;
 }

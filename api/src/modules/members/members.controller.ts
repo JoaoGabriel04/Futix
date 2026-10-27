@@ -7,6 +7,7 @@ import {
   rejectMember,
   promoteMember,
   removeMember,
+  markAbsent,
   addCoOrganizer,
   removeCoOrganizer,
 } from "./members.service.js";
@@ -154,6 +155,29 @@ export async function handleRemove(
   try {
     await removeMember(req.userId, roomId, memberId);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleMarkAbsent(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+  const memberId = req.params["memberId"];
+
+  if (!roomId || !memberId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ou membro ausente." },
+    });
+    return;
+  }
+
+  try {
+    const member = await markAbsent(req.userId, roomId, memberId);
+    res.status(200).json(member);
   } catch (err) {
     next(err);
   }

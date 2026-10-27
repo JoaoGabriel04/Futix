@@ -123,7 +123,11 @@ export function balancedDraw(players: R18Input[], teamSize: number, maxStarsPerT
 
 // ── service functions ──────────────────────────────────────────────────────────
 
-export async function startRoom(userId: string, roomId: string): Promise<DrawResultForOrg> {
+export async function startRoom(
+  userId: string,
+  roomId: string,
+  absentMemberIds: string[] = [],
+): Promise<DrawResultForOrg> {
   // Check ORGANIZER or CO_ORGANIZER
   const member = await prisma.roomMember.findFirst({
     where: { roomId, userId, role: { in: ["ORGANIZER", "CO_ORGANIZER"] }, status: "CONFIRMED" },
@@ -141,7 +145,19 @@ export async function startRoom(userId: string, roomId: string): Promise<DrawRes
     throw makeError("A sala já foi iniciada.", 400, "ROOM_NOT_STARTED");
   }
 
-  // Load confirmed LINE members
+  // R53: mark absent members as NO_SHOW before drawing
+  if (absentMemberIds.length > 0) {
+    await prisma.roomMember.updateMany({
+      where: {
+        id: { in: absentMemberIds },
+        roomId,
+        status: "CONFIRMED",
+      },
+      data: { status: "NO_SHOW" },
+    });
+  }
+
+  // Load confirmed LINE members (excludes NO_SHOW after update above)
   const lineMembers = await prisma.roomMember.findMany({
     where: { roomId, status: "CONFIRMED", playRole: "LINE" },
     select: { userId: true, user: { select: { name: true } } },

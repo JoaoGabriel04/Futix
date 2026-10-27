@@ -43,6 +43,8 @@ enum MemberStatus {
   WAITLIST
   REJECTED
   LEFT
+  NO_SHOW
+  REMOVED
 }
 
 enum WeightLevel {
@@ -117,6 +119,7 @@ model Room {
   matchMinutes     Int          @default(10)
   winnerRule       WinnerRule   @default(MAX_2_WINS)
   maxStarsPerTeam  Int          @default(3)
+  autoPromote      Boolean      @default(true)
   startedAt        DateTime?
   finishedAt       DateTime?
 
