@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/entrar", "/cadastro", "/ui", "/auth/callback", "/api/auth", "/api/proxy"];
+// Rotas de auth: bloqueadas para quem já está autenticado
+const AUTH_PATHS = ["/entrar", "/cadastro"];
+const PUBLIC_PATHS = ["/ui", "/auth/callback", "/api/auth", "/api/proxy"];
 
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -37,6 +39,29 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
     // Sem access_token na landing: tenta refresh silencioso para redirecionar ao início
+    const tokens = await tryRefresh(req);
+    if (tokens) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/inicio";
+      const response = NextResponse.redirect(url);
+      response.cookies.set("access_token", tokens.accessToken, { ...COOKIE_OPTS, maxAge: 900 });
+      response.cookies.set("refresh_token", tokens.refreshToken, {
+        ...COOKIE_OPTS,
+        maxAge: 2_592_000,
+      });
+      return response;
+    }
+    return NextResponse.next();
+  }
+
+  // Páginas de auth: redireciona para /inicio se já autenticado
+  const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
+  if (isAuthPage) {
+    if (req.cookies.get("access_token")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/inicio";
+      return NextResponse.redirect(url);
+    }
     const tokens = await tryRefresh(req);
     if (tokens) {
       const url = req.nextUrl.clone();
