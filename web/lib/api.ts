@@ -1,10 +1,19 @@
 // Promise compartilhada: múltiplos 401 simultâneos disparam apenas um refresh.
-let refreshPromise: Promise<boolean> | null = null;
+// "refreshed"   → novo access_token obtido, repetir a request
+// "expired"     → refresh_token inválido/expirado, deslogar
+// "unavailable" → servidor offline ou erro de rede, NÃO deslogar
+type RefreshOutcome = "refreshed" | "expired" | "unavailable";
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 
-function doRefresh(): Promise<boolean> {
+function doRefresh(): Promise<RefreshOutcome> {
   if (!refreshPromise) {
     refreshPromise = fetch("/api/auth/refresh", { method: "POST" })
-      .then((r) => r.ok)
+      .then((r): RefreshOutcome => {
+        if (r.ok) return "refreshed";
+        if (r.status >= 500) return "unavailable";
+        return "expired";
+      })
+      .catch((): RefreshOutcome => "unavailable")
       .finally(() => {
         refreshPromise = null;
       });
@@ -44,14 +53,18 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   if (res.status === 401) {
-    const refreshed = await doRefresh();
-    if (refreshed) {
+    const outcome = await doRefresh();
+    if (outcome === "refreshed") {
       return apiFetch<T>(path, init);
     }
-    if (typeof window !== "undefined") {
-      window.location.href = "/entrar";
+    if (outcome === "expired") {
+      if (typeof window !== "undefined") {
+        window.location.href = "/entrar";
+      }
+      throw new Error("Sessão expirada. Faça login novamente.");
     }
-    throw new Error("Sessão expirada. Faça login novamente.");
+    // "unavailable": servidor offline ou rede caiu — não deslogar
+    throw new Error("Serviço temporariamente indisponível. Tente novamente em instantes.");
   }
 
   if (!res.ok) {
