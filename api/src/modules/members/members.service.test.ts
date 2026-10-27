@@ -20,6 +20,7 @@ const { prismaMock } = vi.hoisted(() => {
       aggregate: vi.fn(),
     },
     $transaction: vi.fn(),
+    $executeRaw: vi.fn(),
   };
 
   return { prismaMock };
@@ -187,6 +188,22 @@ describe("leaveRoom — Regra 9", () => {
 // Regra 4 — approveMember
 // ══════════════════════════════════════════════════════════════════════════════
 
+function makeTxMock(pendingMember: Partial<RoomMember>, countValue: number, roomSlots = { lineSlots: 10, goalkeeperSlots: 2 }) {
+  return {
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    room: { findUnique: vi.fn().mockResolvedValue(roomSlots) },
+    roomMember: {
+      findFirst: vi.fn().mockResolvedValue(fakeMember({ status: "PENDING", roomId: "room-1", ...pendingMember })),
+      count: vi.fn().mockResolvedValue(countValue),
+      aggregate: vi.fn().mockResolvedValue({ _max: { waitlistPosition: 0 } }),
+      update: vi.fn().mockImplementation(
+        ({ data }: { data: { status: string; waitlistPosition?: number } }) =>
+          Promise.resolve(fakeMember({ status: data.status as "CONFIRMED" | "WAITLIST", waitlistPosition: data.waitlistPosition ?? null })),
+      ),
+    },
+  };
+}
+
 describe("approveMember — Regra 4", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -196,12 +213,14 @@ describe("approveMember — Regra 4", () => {
   it("throws INVALID_STATUS (400) when member is not PENDING", async () => {
     prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) => {
       const txMock = {
-        ...prismaMock,
-        $queryRaw: vi.fn().mockResolvedValue([
-          fakeMember({ status: "CONFIRMED", roomId: "room-1" }),
-        ]),
+        $executeRaw: vi.fn().mockResolvedValue(1),
         room: { findUnique: vi.fn().mockResolvedValue(FAKE_OPEN_ROOM) },
-        roomMember: { ...prismaMock.roomMember },
+        roomMember: {
+          findFirst: vi.fn().mockResolvedValue(fakeMember({ status: "CONFIRMED", roomId: "room-1" })),
+          count: vi.fn(),
+          aggregate: vi.fn(),
+          update: vi.fn(),
+        },
       };
       return fn(txMock as unknown as typeof prismaMock);
     });
@@ -212,89 +231,56 @@ describe("approveMember — Regra 4", () => {
     });
   });
 
-  // Test 8: há vaga → CONFIRMED
-  it("sets status to CONFIRMED when there is a vacancy", async () => {
-    const confirmedMember = fakeMember({ status: "CONFIRMED", playRole: "LINE" });
-
-    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) => {
-      const txMock = {
-        $queryRaw: vi.fn().mockResolvedValue([
-          fakeMember({ status: "PENDING", playRole: "LINE", roomId: "room-1" }),
-        ]),
-        room: {
-          findUnique: vi.fn().mockResolvedValue({ lineSlots: 10, goalkeeperSlots: 2 }),
-        },
-        roomMember: {
-          count: vi.fn().mockResolvedValue(5), // 5 < 10 slots → há vaga
-          aggregate: vi.fn(),
-          update: vi.fn().mockResolvedValue(confirmedMember),
-        },
-      };
-      return fn(txMock as unknown as typeof prismaMock);
-    });
+  // Test 8: jogador de linha com vaga → CONFIRMED
+  it("sets status to CONFIRMED when LINE player has a vacancy", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) =>
+      fn(makeTxMock({ playRole: "LINE" }, 5) as unknown as typeof prismaMock), // 5 < 10 slots
+    );
 
     const result = await approveMember("approver-1", "room-1", "member-1");
-
     expect(result.status).toBe("CONFIRMED");
   });
 
-  // Test 9: sem vaga → WAITLIST
-  it("sets status to WAITLIST when there is no vacancy", async () => {
-    const waitlistMember = fakeMember({ status: "WAITLIST", waitlistPosition: 1 });
-
-    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) => {
-      const txMock = {
-        $queryRaw: vi.fn().mockResolvedValue([
-          fakeMember({ status: "PENDING", playRole: "LINE", roomId: "room-1" }),
-        ]),
-        room: {
-          findUnique: vi.fn().mockResolvedValue({ lineSlots: 10, goalkeeperSlots: 2 }),
-        },
-        roomMember: {
-          count: vi.fn().mockResolvedValue(10), // 10 === 10 slots → sem vaga
-          aggregate: vi.fn().mockResolvedValue({ _max: { waitlistPosition: 0 } }),
-          update: vi.fn().mockResolvedValue(waitlistMember),
-        },
-      };
-      return fn(txMock as unknown as typeof prismaMock);
-    });
+  // Test 9: jogador de linha sem vaga → WAITLIST
+  it("sets status to WAITLIST when LINE player has no vacancy", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) =>
+      fn(makeTxMock({ playRole: "LINE" }, 10) as unknown as typeof prismaMock), // 10 === 10 slots
+    );
 
     const result = await approveMember("approver-1", "room-1", "member-1");
-
     expect(result.status).toBe("WAITLIST");
   });
 
-  // Test 10: CORRIDA — dois aprovadores, 1 vaga → segundo fica WAITLIST
+  // Test 10: goleiro com vaga → CONFIRMED (cenário que estava falhando)
+  it("sets status to CONFIRMED when GOALKEEPER has a vacancy (line full, keeper slots available)", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) =>
+      // lineSlots: 10 full, goalkeeperSlots: 2, confirmados goleiros: 0 → 0 < 2 → CONFIRMED
+      fn(makeTxMock({ playRole: "GOALKEEPER" }, 0, { lineSlots: 10, goalkeeperSlots: 2 }) as unknown as typeof prismaMock),
+    );
+
+    const result = await approveMember("approver-1", "room-1", "member-1");
+    expect(result.status).toBe("CONFIRMED");
+  });
+
+  // Test 11: goleiro sem vaga de goleiro → WAITLIST
+  it("sets status to WAITLIST when GOALKEEPER has no keeper vacancy", async () => {
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) =>
+      // goalkeeperSlots: 2, confirmados goleiros: 2 → 2 < 2 false → WAITLIST
+      fn(makeTxMock({ playRole: "GOALKEEPER" }, 2, { lineSlots: 10, goalkeeperSlots: 2 }) as unknown as typeof prismaMock),
+    );
+
+    const result = await approveMember("approver-1", "room-1", "member-1");
+    expect(result.status).toBe("WAITLIST");
+  });
+
+  // Test 12: CORRIDA — dois aprovadores, 1 vaga → segundo fica WAITLIST
   it("places second approver's member on WAITLIST when race condition occurs (1 vacancy)", async () => {
     let callCount = 0;
 
     prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof prismaMock) => Promise<RoomMember>) => {
       callCount += 1;
       const isFirst = callCount === 1;
-
-      const txMock = {
-        $queryRaw: vi.fn().mockResolvedValue([
-          fakeMember({ status: "PENDING", playRole: "LINE", roomId: "room-1" }),
-        ]),
-        room: {
-          findUnique: vi.fn().mockResolvedValue({ lineSlots: 10, goalkeeperSlots: 2 }),
-        },
-        roomMember: {
-          // First call: 9 confirmed (1 vacancy). Second call (inside lock): 10 confirmed (no vacancy)
-          count: vi.fn().mockResolvedValue(isFirst ? 9 : 10),
-          aggregate: vi.fn().mockResolvedValue({ _max: { waitlistPosition: 0 } }),
-          update: vi.fn().mockImplementation(
-            ({ data }: { data: { status: string; waitlistPosition?: number } }) =>
-              Promise.resolve(
-                fakeMember({
-                  status: data.status as "CONFIRMED" | "WAITLIST",
-                  waitlistPosition: data.waitlistPosition ?? null,
-                }),
-              ),
-          ),
-        },
-      };
-      return fn(txMock as unknown as typeof prismaMock);
+      return fn(makeTxMock({ playRole: "LINE" }, isFirst ? 9 : 10) as unknown as typeof prismaMock);
     });
 
     const first = await approveMember("approver-1", "room-1", "member-1");

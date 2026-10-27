@@ -107,12 +107,18 @@ export async function approveMember(
   memberId: string,
 ): Promise<RoomMember> {
   return prisma.$transaction(async (tx) => {
-    // Lock the member row to prevent concurrent approval races
-    const [locked] = await tx.$queryRaw<RoomMember[]>`
-      SELECT * FROM "RoomMember" WHERE id = ${memberId} FOR UPDATE
-    `;
+    // Acquire a row-level lock to prevent concurrent approval races.
+    // $executeRaw is used for the lock only; data is fetched via Prisma
+    // so enum values are deserialized correctly (raw SQL can return
+    // enum columns with unexpected types via the pg driver).
+    await tx.$executeRaw`SELECT 1 FROM "RoomMember" WHERE id = ${memberId} FOR UPDATE`;
 
-    if (!locked || locked.roomId !== roomId) {
+    const locked = await tx.roomMember.findFirst({
+      where: { id: memberId, roomId },
+      select: { id: true, status: true, playRole: true },
+    });
+
+    if (!locked) {
       throw makeError("Membro não encontrado.", 404, "NOT_FOUND");
     }
 
