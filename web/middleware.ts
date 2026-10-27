@@ -32,28 +32,6 @@ async function tryRefresh(
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (pathname === "/") {
-    if (req.cookies.get("access_token")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/inicio";
-      return NextResponse.redirect(url);
-    }
-    // Sem access_token na landing: tenta refresh silencioso para redirecionar ao início
-    const tokens = await tryRefresh(req);
-    if (tokens) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/inicio";
-      const response = NextResponse.redirect(url);
-      response.cookies.set("access_token", tokens.accessToken, { ...COOKIE_OPTS, maxAge: 900 });
-      response.cookies.set("refresh_token", tokens.refreshToken, {
-        ...COOKIE_OPTS,
-        maxAge: 2_592_000,
-      });
-      return response;
-    }
-    return NextResponse.next();
-  }
-
   // Páginas de auth: redireciona para /inicio se já autenticado
   const isAuthPage = AUTH_PATHS.some((p) => pathname.startsWith(p));
   if (isAuthPage) {
