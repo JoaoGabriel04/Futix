@@ -969,6 +969,20 @@ export function GestaoClient({ id }: GestaoClientProps) {
                 <ChevronRight size={18} className="text-text-muted shrink-0" />
               </button>
 
+              {/* Cancelar sala */}
+              {room.status !== "LIVE" &&
+                room.status !== "FINISHED" &&
+                room.status !== "CANCELED" && (
+                  <Button
+                    variant="Danger"
+                    size="Large"
+                    onClick={handleCancel}
+                    disabled={settingsLoading === "cancel"}
+                  >
+                    {settingsLoading === "cancel" ? "Cancelando..." : "Cancelar sala"}
+                  </Button>
+                )}
+
               {/* Encerrar sala — sala em andamento */}
               {(room.status === "LIVE" || room.status === "DRAWN") && isOrgOrCoOrg && (
                 <Button
@@ -1080,6 +1094,51 @@ export function GestaoClient({ id }: GestaoClientProps) {
                       </div>
                     )}
                   </div>
+                </section>
+              )}
+
+              {/* Convite */}
+              {isOrgOrCoOrg && (
+                <section className="flex flex-col gap-[var(--space-lg)]">
+                  <h2 className="text-heading-h3 text-accent-default">
+                    Convite
+                  </h2>
+                  {inviteLink ? (
+                    <div className="flex flex-col gap-[var(--space-md)]">
+                      <p className="text-caption-regular text-text-secondary">
+                        Link de uso único válido por 24h:
+                      </p>
+                      <div className="bg-bg-surface border border-border-default rounded-lg px-[var(--space-lg)] py-[var(--space-md)] flex items-center justify-between gap-[var(--space-md)]">
+                        <span className="text-caption-regular text-text-primary truncate flex-1">
+                          {inviteLink}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCopyInvite}
+                          className="text-accent-default text-caption-strong shrink-0"
+                        >
+                          {copied ? "Copiado!" : "Copiar"}
+                        </button>
+                      </div>
+                      <Button
+                        variant="Secondary"
+                        size="Large"
+                        onClick={handleGenerateInvite}
+                        disabled={settingsLoading === "invite"}
+                      >
+                        Gerar novo link
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="Secondary"
+                      size="Large"
+                      onClick={handleGenerateInvite}
+                      disabled={settingsLoading === "invite"}
+                    >
+                      {settingsLoading === "invite" ? "Gerando..." : "Gerar link de convite"}
+                    </Button>
+                  )}
                 </section>
               )}
             </div>
