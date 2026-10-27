@@ -8,6 +8,7 @@ import {
   promoteMember,
   removeMember,
   markAbsent,
+  substitutePlayer,
   addCoOrganizer,
   removeCoOrganizer,
 } from "./members.service.js";
@@ -178,6 +179,37 @@ export async function handleMarkAbsent(
   try {
     const member = await markAbsent(req.userId, roomId, memberId);
     res.status(200).json(member);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function handleSubstitute(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const roomId = req.params["id"];
+  const memberId = req.params["memberId"];
+
+  if (!roomId || !memberId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "ID da sala ou membro ausente." },
+    });
+    return;
+  }
+
+  const body = req.body as { substituteId?: unknown };
+  if (typeof body?.substituteId !== "string" || !body.substituteId) {
+    res.status(400).json({
+      error: { code: "VALIDATION_ERROR", message: "substituteId é obrigatório." },
+    });
+    return;
+  }
+
+  try {
+    const result = await substitutePlayer(req.userId, roomId, memberId, body.substituteId);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }

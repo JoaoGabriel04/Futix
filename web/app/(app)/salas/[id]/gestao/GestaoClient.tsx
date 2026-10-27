@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ChevronRight, Hand, Info, Lock, Shuffle, Users, UserX } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronRight, Info, MoreVertical, Trash2, Users, UserX } from "lucide-react";
+import { useDraw } from "../../../../../hooks/useDraw";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -36,10 +37,20 @@ interface GestaoClientProps {
 
 type Tab = "requests" | "players" | "settings";
 
+type PlayerMenuTarget = {
+  id: string;
+  userId: string;
+  name: string;
+  avatarUrl: string | null;
+  playRole: "LINE" | "GOALKEEPER";
+  position: string;
+};
+
 export function GestaoClient({ id }: GestaoClientProps) {
   const router = useRouter();
   const { room, isLoading, mutate } = useRoom(id);
-  const { weights, isLoading: weightsLoading } = useWeights(id);
+  const { weights, isLoading: weightsLoading, mutate: weightsMutate } = useWeights(id);
+  const { draw, mutate: drawMutate } = useDraw(id);
   const [activeTab, setActiveTab] = useState<Tab>("requests");
   const [loadingMemberId, setLoadingMemberId] = useState<string | null>(null);
 
@@ -47,6 +58,18 @@ export function GestaoClient({ id }: GestaoClientProps) {
   const [absentIds, setAbsentIds] = useState<Set<string>>(new Set());
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+
+  // Player menu sheet
+  const [playerMenuTarget, setPlayerMenuTarget] = useState<PlayerMenuTarget | null>(null);
+  const [playerMenuWeight, setPlayerMenuWeight] = useState<"REGULAR" | "GOOD" | "STAR">("GOOD");
+  const [playerMenuLoading, setPlayerMenuLoading] = useState<string | null>(null);
+
+  // Substituição sheet
+  const [showSubstSheet, setShowSubstSheet] = useState(false);
+  const [substAbsentMemberId, setSubstAbsentMemberId] = useState<string | null>(null);
+  const [substSelectedId, setSubstSelectedId] = useState<string | null>(null);
+  const [substLoading, setSubstLoading] = useState(false);
+  const [substError, setSubstError] = useState<string | null>(null);
 
   const [lineSlots, setLineSlots] = useState<number | null>(null);
   const [teamSize, setTeamSize] = useState<number | null>(null);
@@ -137,10 +160,94 @@ export function GestaoClient({ id }: GestaoClientProps) {
     }
   }
 
+  function openPlayerMenu(m: NonNullable<typeof room>["members"][number]) {
+    setPlayerMenuTarget({
+      id: m.id,
+      userId: m.userId,
+      name: m.user.name,
+      avatarUrl: m.user.avatarUrl,
+      playRole: m.playRole as "LINE" | "GOALKEEPER",
+      position: memberPosition(m),
+    });
+    setPlayerMenuWeight(weightFor(m.userId));
+    setPlayerMenuLoading(null);
+  }
+
+  async function handleSaveWeight(userId: string, level: "REGULAR" | "GOOD" | "STAR") {
+    setPlayerMenuLoading("weight");
+    try {
+      await apiFetch(`/rooms/${id}/weights`, {
+        method: "PUT",
+        body: JSON.stringify({ items: [{ playerId: userId, level }] }),
+      });
+      await weightsMutate();
+    } finally {
+      setPlayerMenuLoading(null);
+    }
+  }
+
+  async function handleMarkAbsent(memberId: string) {
+    setPlayerMenuLoading("absent");
+    try {
+      await apiFetch(`/rooms/${id}/members/${memberId}/mark-absent`, { method: "POST" });
+      await mutate();
+      setPlayerMenuTarget(null);
+      // Open substitution sheet if room is DRAWN
+      if (room?.status === "DRAWN") {
+        setSubstAbsentMemberId(memberId);
+        setSubstSelectedId(null);
+        setSubstError(null);
+        setShowSubstSheet(true);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPlayerMenuLoading(null);
+    }
+  }
+
+  async function handleRemoveFromMenu(memberId: string) {
+    setPlayerMenuLoading("remove");
+    try {
+      await apiFetch(`/rooms/${id}/members/${memberId}/remove`, { method: "POST" });
+      await mutate();
+      setPlayerMenuTarget(null);
+      if (room?.status === "DRAWN" || room?.status === "LIVE") {
+        setSubstAbsentMemberId(memberId);
+        setSubstSelectedId(null);
+        setSubstError(null);
+        setShowSubstSheet(true);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPlayerMenuLoading(null);
+    }
+  }
+
+  async function handleConfirmSubstitution() {
+    if (!substAbsentMemberId || !substSelectedId) return;
+    setSubstLoading(true);
+    setSubstError(null);
+    try {
+      await apiFetch(`/rooms/${id}/members/${substAbsentMemberId}/substitute`, {
+        method: "POST",
+        body: JSON.stringify({ substituteId: substSelectedId }),
+      });
+      await Promise.all([mutate(), drawMutate()]);
+      setShowSubstSheet(false);
+      setSubstAbsentMemberId(null);
+    } catch (e) {
+      setSubstError((e as Error).message);
+    } finally {
+      setSubstLoading(false);
+    }
+  }
+
   function handleOpenStartSheet() {
     setAbsentIds(new Set());
     setStartError(null);
-    handleOpenStartSheet();
+    setShowStartSheet(true);
   }
 
   function toggleAbsent(memberId: string) {
@@ -533,6 +640,16 @@ export function GestaoClient({ id }: GestaoClientProps) {
                         </div>
                         {!weightsLoading && isOrgOrCoOrg && m.playRole === "LINE" && (
                           <WeightChip level={weightFor(m.userId)} />
+                        )}
+                        {isOrgOrCoOrg && (
+                          <button
+                            type="button"
+                            aria-label={`Menu de ${m.user.name}`}
+                            onClick={() => openPlayerMenu(m)}
+                            className="text-text-muted hover:text-text-primary transition-colors shrink-0 p-[var(--space-xs)]"
+                          >
+                            <MoreVertical size={18} />
+                          </button>
                         )}
                       </div>
                     ))}
@@ -1420,6 +1537,268 @@ export function GestaoClient({ id }: GestaoClientProps) {
               {startError && (
                 <p className="text-caption-regular text-status-danger">{startError}</p>
               )}
+            </>
+          );
+        })()}
+      </BottomSheet>
+
+      {/* BottomSheet — Menu do jogador (06h) */}
+      <BottomSheet
+        open={playerMenuTarget !== null}
+        onClose={() => setPlayerMenuTarget(null)}
+      >
+        {playerMenuTarget && (
+          <>
+            <div className="flex items-center gap-[var(--space-md)]">
+              <Avatar
+                iniciais={memberInitials(playerMenuTarget.name)}
+                src={playerMenuTarget.avatarUrl ?? undefined}
+              />
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-strong text-text-primary truncate">
+                  {playerMenuTarget.name}
+                </span>
+                <span className="text-caption-regular text-text-muted">
+                  {playerMenuTarget.position} ·{" "}
+                  {playerMenuTarget.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"} · Confirmado
+                </span>
+              </div>
+            </div>
+
+            {playerMenuTarget.playRole === "LINE" && (
+              <>
+                <span className="text-overline text-text-muted">PESO DO JOGADOR</span>
+                <div className="flex gap-[var(--space-sm)]">
+                  {(["REGULAR", "GOOD", "STAR"] as const).map((level) => {
+                    const labels = { REGULAR: "Regular", GOOD: "Bom", STAR: "Craque" };
+                    const active = playerMenuWeight === level;
+                    return (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={async () => {
+                          setPlayerMenuWeight(level);
+                          await handleSaveWeight(playerMenuTarget.userId, level);
+                        }}
+                        disabled={playerMenuLoading === "weight"}
+                        className={`flex-1 rounded-full py-[var(--space-sm)] text-caption-strong transition-colors ${
+                          active
+                            ? "bg-accent-default text-text-on-accent"
+                            : "bg-bg-raised border border-border-default text-text-secondary"
+                        } disabled:opacity-60`}
+                      >
+                        {labels[level]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-caption-regular text-text-muted">
+                  Só você e os co-organizadores veem o peso.
+                </p>
+              </>
+            )}
+
+            <button
+              type="button"
+              disabled={!!playerMenuLoading}
+              onClick={() => handleMarkAbsent(playerMenuTarget.id)}
+              className="flex items-center gap-[var(--space-md)] py-[var(--space-sm)] w-full text-left disabled:opacity-60"
+            >
+              <UserX size={20} className="text-text-secondary shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-regular text-text-primary">Marcar como ausente</span>
+                <span className="text-caption-regular text-text-muted">
+                  Libera a vaga e abre a substituição
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={!!playerMenuLoading}
+              onClick={() => handleRemoveFromMenu(playerMenuTarget.id)}
+              className="flex items-center gap-[var(--space-md)] py-[var(--space-sm)] w-full text-left disabled:opacity-60"
+            >
+              <Trash2 size={20} className="text-status-danger shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-body-regular text-status-danger">Remover da sala</span>
+                <span className="text-caption-regular text-text-muted">
+                  Ele poderá pedir para entrar de novo
+                </span>
+              </div>
+            </button>
+
+            <Button
+              variant="Ghost"
+              size="Large"
+              className="w-full"
+              onClick={() => setPlayerMenuTarget(null)}
+              disabled={!!playerMenuLoading}
+            >
+              Fechar
+            </Button>
+          </>
+        )}
+      </BottomSheet>
+
+      {/* BottomSheet — Substituição (06i) */}
+      <BottomSheet
+        open={showSubstSheet}
+        onClose={() => setShowSubstSheet(false)}
+      >
+        {(() => {
+          const absentMember = substAbsentMemberId
+            ? room.members.find((m) => m.id === substAbsentMemberId)
+            : null;
+
+          // Find which team the absent member is on (from draw data)
+          const absentTeam = absentMember && draw
+            ? draw.teams.find((t) => t.players.some((p) => p.userId === absentMember.userId))
+            : null;
+
+          // Compute team's weight level for suggestion
+          const teamWeightTotal = absentTeam?.weightTotal;
+          const teamSize = absentTeam ? absentTeam.players.length : 0;
+          const teamAvgWeight = teamSize > 0 && teamWeightTotal !== undefined
+            ? teamWeightTotal / teamSize
+            : null;
+          const suggestedLevel: "REGULAR" | "GOOD" | "STAR" =
+            teamAvgWeight === null ? "GOOD"
+            : teamAvgWeight >= 3 ? "STAR"
+            : teamAvgWeight >= 2 ? "GOOD"
+            : "REGULAR";
+
+          const candidates = room.members.filter(
+            (m) =>
+              m.status === "WAITLIST" &&
+              m.playRole === (absentMember?.playRole ?? "LINE"),
+          );
+
+          return (
+            <>
+              <p className="text-heading-h2 text-text-primary">Quem entra no lugar?</p>
+              {absentTeam && absentMember && (
+                <p className="text-body-regular text-text-secondary">
+                  Vaga de {absentMember.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"} ·{" "}
+                  {absentTeam.name} · peso {suggestedLevel === "STAR" ? "Craque" : suggestedLevel === "GOOD" ? "Bom" : "Regular"}
+                </p>
+              )}
+
+              <div className="flex flex-col gap-[var(--space-xs)]">
+                {candidates.length === 0 ? (
+                  <p className="text-body-regular text-text-muted">
+                    Nenhum jogador na lista de espera desta função.
+                  </p>
+                ) : (
+                  candidates.map((m) => {
+                    const level = weightFor(m.userId);
+                    const isSuggested = level === suggestedLevel;
+                    const isAboveTeam =
+                      (level === "STAR" && suggestedLevel !== "STAR") ||
+                      (level === "GOOD" && suggestedLevel === "REGULAR");
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSubstSelectedId(m.id)}
+                        className={`flex items-center gap-[var(--space-md)] p-[var(--space-md)] rounded-lg border-2 transition-colors w-full text-left ${
+                          substSelectedId === m.id
+                            ? "border-accent-default bg-accent-subtle"
+                            : "border-border-default bg-bg-surface"
+                        }`}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                            substSelectedId === m.id
+                              ? "border-accent-default bg-accent-default"
+                              : "border-border-default"
+                          }`}
+                          aria-hidden
+                        >
+                          {substSelectedId === m.id && (
+                            <div className="w-2 h-2 rounded-full bg-black" />
+                          )}
+                        </div>
+                        <Avatar
+                          iniciais={memberInitials(m.user.name)}
+                          src={m.user.avatarUrl ?? undefined}
+                        />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <div className="flex items-center gap-[var(--space-sm)]">
+                            <span className="text-body-regular text-text-primary truncate">
+                              {m.user.name}
+                            </span>
+                            {isSuggested && (
+                              <span className="text-caption-strong text-accent-default bg-accent-subtle rounded-full px-[var(--space-sm)] py-[1px] shrink-0">
+                                Sugerido
+                              </span>
+                            )}
+                          </div>
+                          {isAboveTeam && (
+                            <span className="text-caption-regular text-status-warning">
+                              {m.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"} · peso acima do time
+                            </span>
+                          )}
+                          {!isAboveTeam && (
+                            <span className="text-caption-regular text-text-muted">
+                              {m.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"} · na espera
+                            </span>
+                          )}
+                        </div>
+                        <WeightChip level={level} />
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {candidates.length > 0 && (
+                <div className="flex gap-[var(--space-sm)] items-start bg-bg-raised rounded-md p-[var(--space-md)]">
+                  <Info size={14} className="text-text-muted shrink-0 mt-[2px]" />
+                  <p className="text-caption-regular text-text-muted">
+                    Peso equivalente evita desequilibrar o time. Só aparecem jogadores da espera.
+                  </p>
+                </div>
+              )}
+
+              {substError && (
+                <p className="text-caption-regular text-status-danger">{substError}</p>
+              )}
+
+              <Button
+                variant="Primary"
+                size="Large"
+                className="w-full"
+                onClick={handleConfirmSubstitution}
+                disabled={!substSelectedId || substLoading}
+              >
+                {substLoading ? "Confirmando..." : "Confirmar substituição"}
+              </Button>
+
+              {room.status === "DRAWN" && (
+                <Button
+                  variant="Ghost"
+                  size="Large"
+                  className="w-full"
+                  onClick={async () => {
+                    setShowSubstSheet(false);
+                    await drawMutate();
+                    router.push(`/salas/${id}/sorteio`);
+                  }}
+                >
+                  Sortear times de novo
+                </Button>
+              )}
+
+              <Button
+                variant="Ghost"
+                size="Large"
+                className="w-full"
+                onClick={() => setShowSubstSheet(false)}
+                disabled={substLoading}
+              >
+                Cancelar
+              </Button>
             </>
           );
         })()}

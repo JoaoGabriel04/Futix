@@ -2,6 +2,16 @@ import type { RoomMember } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import type { JoinRoomInput } from "@fut/shared";
 
+function tryEmit(roomId: string, event: string, payload: unknown): void {
+  import("../../socket.js")
+    .then(({ getIo }) => {
+      try {
+        getIo().to(`room:${roomId}`).emit(event, payload);
+      } catch {}
+    })
+    .catch(() => {});
+}
+
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 function makeError(
@@ -341,12 +351,7 @@ export async function removeMember(
       where: { id: memberId },
       data: { status: "REMOVED" },
     });
-    try {
-      const { getIo } = await import("../../socket.js");
-      getIo()
-        .to(`room:${roomId}`)
-        .emit("member:updated", { memberId, status: "REMOVED" });
-    } catch {}
+    tryEmit(roomId, "member:updated", { memberId, status: "REMOVED" });
   } else {
     await prisma.roomMember.update({
       where: { id: memberId },
@@ -391,12 +396,87 @@ export async function markAbsent(
     data: { status: "NO_SHOW" },
   });
 
-  try {
-    const { getIo } = await import("../../socket.js");
-    getIo()
-      .to(`room:${roomId}`)
-      .emit("member:updated", { memberId, status: "NO_SHOW" });
-  } catch {}
+  tryEmit(roomId, "member:updated", { memberId, status: "NO_SHOW" });
 
   return updated;
+}
+
+/**
+ * R55/R56 — Substitute an absent/removed player with a WAITLIST member.
+ * Works in DRAWN (before first match) and LIVE (1-for-1, same function, same team).
+ * Updates DrawTeam.playerIds and promotes the substitute to CONFIRMED.
+ */
+export async function substitutePlayer(
+  _actorId: string,
+  roomId: string,
+  absentMemberId: string,
+  substituteRoomMemberId: string,
+): Promise<{ substituteMember: RoomMember; teamId: string }> {
+  return prisma.$transaction(async (tx) => {
+    const absent = await tx.roomMember.findFirst({
+      where: { id: absentMemberId, roomId },
+      select: { id: true, userId: true, playRole: true, status: true },
+    });
+
+    if (!absent) throw makeError("Membro ausente não encontrado.", 404, "NOT_FOUND");
+    if (absent.status !== "NO_SHOW" && absent.status !== "REMOVED") {
+      throw makeError("O membro deve estar NO_SHOW ou REMOVED para ser substituído.", 400, "INVALID_STATUS");
+    }
+
+    const substitute = await tx.roomMember.findFirst({
+      where: { id: substituteRoomMemberId, roomId },
+      select: { id: true, userId: true, playRole: true, status: true, waitlistPosition: true },
+    });
+
+    if (!substitute) throw makeError("Substituto não encontrado.", 404, "SUBSTITUTE_NOT_FOUND");
+    if (substitute.status !== "WAITLIST") {
+      throw makeError("O substituto deve estar na lista de espera.", 400, "SUBSTITUTE_NOT_WAITLIST");
+    }
+    if (substitute.playRole !== absent.playRole) {
+      throw makeError("O substituto deve ter a mesma função do jogador ausente.", 400, "ROLE_MISMATCH");
+    }
+
+    const room = await tx.room.findUnique({
+      where: { id: roomId },
+      select: { status: true },
+    });
+    if (!room) throw makeError("Sala não encontrada.", 404, "ROOM_NOT_FOUND");
+    if (room.status !== "DRAWN" && room.status !== "LIVE") {
+      throw makeError("Substituição só é permitida em DRAWN ou LIVE.", 400, "INVALID_ROOM_STATUS");
+    }
+
+    // Find the draw team that contains the absent player's userId
+    const latestDraw = await tx.draw.findFirst({
+      where: { roomId },
+      orderBy: { createdAt: "desc" },
+      select: { teams: { select: { id: true, playerIds: true } } },
+    });
+
+    const team = latestDraw?.teams.find((t) => t.playerIds.includes(absent.userId));
+    if (!team) throw makeError("Nenhum time encontrado para este jogador.", 404, "TEAM_NOT_FOUND");
+
+    // Replace absent userId with substitute userId in the team
+    const newPlayerIds = team.playerIds.map((pid) =>
+      pid === absent.userId ? substitute.userId : pid,
+    );
+
+    await tx.drawTeam.update({
+      where: { id: team.id },
+      data: { playerIds: newPlayerIds },
+    });
+
+    // Promote substitute to CONFIRMED
+    const promoted = await tx.roomMember.update({
+      where: { id: substitute.id },
+      data: { status: "CONFIRMED", waitlistPosition: null },
+    });
+
+    tryEmit(roomId, "member:substituted", {
+      absentMemberId,
+      substituteUserId: substitute.userId,
+      teamId: team.id,
+    });
+
+    return { substituteMember: promoted, teamId: team.id };
+  });
 }
