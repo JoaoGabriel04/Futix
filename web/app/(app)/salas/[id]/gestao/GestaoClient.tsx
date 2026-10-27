@@ -17,7 +17,9 @@ import { Button } from "../../../../../components/ui/Button";
 import { BottomSheet } from "../../../../../components/ui/BottomSheet";
 import { SegmentedControl } from "../../../../../components/ui/SegmentedControl";
 import { StepperRow } from "../../../../../components/domain/StepperRow";
+import { WeightChip } from "../../../../../components/ui/WeightChip";
 import { useRoom } from "../../../../../hooks/useRoom";
+import { useWeights } from "../../../../../hooks/useWeights";
 import { apiFetch } from "../../../../../lib/api";
 import { finishRoom, deleteRoom } from "../../../../../lib/matchApi";
 
@@ -37,6 +39,7 @@ type Tab = "requests" | "players" | "settings";
 export function GestaoClient({ id }: GestaoClientProps) {
   const router = useRouter();
   const { room, isLoading, mutate } = useRoom(id);
+  const { weights, isLoading: weightsLoading } = useWeights(id);
   const [activeTab, setActiveTab] = useState<Tab>("requests");
   const [loadingMemberId, setLoadingMemberId] = useState<string | null>(null);
 
@@ -74,6 +77,10 @@ export function GestaoClient({ id }: GestaoClientProps) {
     myMember?.role === "ORGANIZER" || myMember?.role === "CO_ORGANIZER";
   const showActionBar =
     isOrgOrCoOrg && (room.status === "OPEN" || room.status === "LOCKED");
+
+  function weightFor(userId: string): "REGULAR" | "GOOD" | "STAR" {
+    return weights.find((w) => w.playerId === userId)?.level ?? "GOOD";
+  }
 
   const freeSlots =
     Math.max(0, room.lineSlots - room.confirmedLine) +
@@ -464,6 +471,21 @@ export function GestaoClient({ id }: GestaoClientProps) {
             {/* Players tab */}
             {activeTab === "players" && (
               <div className="flex flex-col gap-[var(--space-md)]">
+                {isOrgOrCoOrg && (room.status === "OPEN" || room.status === "LOCKED") && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/salas/${id}/pesos`)}
+                    className="bg-bg-surface border border-border-default rounded-[var(--radius-md)] px-[var(--space-lg)] py-[var(--space-md)] flex items-center justify-between gap-[var(--space-lg)] w-full text-left"
+                  >
+                    <div className="flex flex-col gap-[var(--space-xs)]">
+                      <span className="text-body-strong text-text-primary">Pesos dos jogadores</span>
+                      <span className="text-caption-regular text-text-secondary">
+                        Equilibra o sorteio. Visível só para organizadores.
+                      </span>
+                    </div>
+                    <ChevronRight size={18} className="text-text-muted shrink-0" />
+                  </button>
+                )}
                 {confirmed.length === 0 && waitlist.length === 0 ? (
                   <EmptyState icon={Users} title="Nenhum membro confirmado ainda" />
                 ) : (
@@ -471,10 +493,25 @@ export function GestaoClient({ id }: GestaoClientProps) {
                     {confirmed.map((m, index) => (
                       <div
                         key={m.id}
-                        className="animate-list-item"
+                        className="animate-list-item bg-bg-surface border border-border-default rounded-lg flex items-center gap-[var(--space-md)] px-[var(--space-md)] py-[var(--space-sm)]"
                         style={{ animationDelay: `${Math.min(index, 5) * 40}ms` }}
                       >
-                        <ApprovalCard member={memberToCard(m)} />
+                        <Avatar
+                          iniciais={memberInitials(m.user.name)}
+                          src={m.user.avatarUrl ?? undefined}
+                          size="MD"
+                        />
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-body-strong text-text-primary truncate">
+                            {m.user.name}
+                          </span>
+                          <span className="text-caption-regular text-text-muted">
+                            {memberPosition(m)}
+                          </span>
+                        </div>
+                        {!weightsLoading && isOrgOrCoOrg && m.playRole === "LINE" && (
+                          <WeightChip level={weightFor(m.userId)} />
+                        )}
                       </div>
                     ))}
                     {waitlist.map((m, index) => (
@@ -837,6 +874,9 @@ export function GestaoClient({ id }: GestaoClientProps) {
                             {memberPosition(m)}
                           </span>
                         </div>
+                        {!weightsLoading && isOrgOrCoOrg && m.playRole === "LINE" && (
+                          <WeightChip level={weightFor(m.userId)} />
+                        )}
                         <Badge status="Confirmado" />
                       </div>
                     ))
@@ -953,6 +993,23 @@ export function GestaoClient({ id }: GestaoClientProps) {
                   </RadixSwitch.Root>
                 </div>
               </section>
+
+              {/* Pesos dos jogadores — link */}
+              {isOrgOrCoOrg && (room.status === "OPEN" || room.status === "LOCKED") && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/salas/${id}/pesos`)}
+                  className="bg-bg-surface border border-border-default rounded-[var(--radius-md)] px-[var(--space-lg)] py-[var(--space-md)] flex items-center justify-between gap-[var(--space-lg)] w-full text-left"
+                >
+                  <div className="flex flex-col gap-[var(--space-xs)]">
+                    <span className="text-body-strong text-text-primary">Pesos dos jogadores</span>
+                    <span className="text-caption-regular text-text-secondary">
+                      Equilibra o sorteio. Visível só para organizadores.
+                    </span>
+                  </div>
+                  <ChevronRight size={18} className="text-text-muted shrink-0" />
+                </button>
+              )}
 
               {/* Regras da partida — link */}
               <button
