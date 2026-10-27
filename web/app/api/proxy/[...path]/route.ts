@@ -10,7 +10,9 @@ async function proxy(request: NextRequest, pathSegments: string[]): Promise<Next
 
   const headers = new Headers();
   const ct = request.headers.get("content-type");
+  const origin = request.headers.get("origin");
   if (ct) headers.set("content-type", ct);
+  if (origin) headers.set("origin", origin);
   if (accessToken) headers.set("cookie", `access_token=${accessToken}`);
 
   let body: BodyInit | null = null;
