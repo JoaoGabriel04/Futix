@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ChevronRight, Info, MoreVertical, Trash2, Users, UserX } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, ChevronRight, Info, MoreVertical, Trash2, Users, UserX } from "lucide-react";
 import { useDraw } from "../../../../../hooks/useDraw";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { toast } from "sonner";
@@ -94,6 +94,37 @@ export function GestaoClient({ id }: GestaoClientProps) {
     .filter((m) => m.status === "WAITLIST")
     .slice()
     .sort((a, b) => (a.waitlistPosition ?? 0) - (b.waitlistPosition ?? 0));
+
+  const confirmedPlayers = room.members.filter(
+    (m) => m.status === "CONFIRMED" && m.role !== "ORGANIZER",
+  );
+  const presentPlayers = confirmedPlayers.filter((m) => !absentIds.has(m.id));
+  const lineConfirmed = confirmedPlayers.filter((m) => m.playRole === "LINE");
+  const goalkeeperConfirmed = confirmedPlayers.filter(
+    (m) => m.playRole === "GOALKEEPER",
+  );
+  const presentLineCount = presentPlayers.filter(
+    (m) => m.playRole === "LINE",
+  ).length;
+  const presentGoalkeeperCount = presentPlayers.filter(
+    (m) => m.playRole === "GOALKEEPER",
+  ).length;
+  const allAbsent = confirmedPlayers.length > 0 && presentPlayers.length === 0;
+  const lineVacancies = lineConfirmed.filter((m) => absentIds.has(m.id)).length;
+  const roleGroups = [
+    {
+      key: "LINE",
+      label: "Linha",
+      members: lineConfirmed,
+      presentCount: presentLineCount,
+    },
+    {
+      key: "GOALKEEPER",
+      label: "Goleiros",
+      members: goalkeeperConfirmed,
+      presentCount: presentGoalkeeperCount,
+    },
+  ].filter((group) => group.members.length > 0);
 
   const myMember = room.myMember;
   const isOrganizer = myMember?.role === "ORGANIZER";
@@ -260,6 +291,12 @@ export function GestaoClient({ id }: GestaoClientProps) {
       }
       return next;
     });
+  }
+
+  function toggleAllAbsent() {
+    setAbsentIds(
+      allAbsent ? new Set() : new Set(confirmedPlayers.map((m) => m.id)),
+    );
   }
 
   async function handleStart() {
@@ -1372,174 +1409,191 @@ export function GestaoClient({ id }: GestaoClientProps) {
       <BottomSheet
         open={showStartSheet}
         onClose={() => setShowStartSheet(false)}
-      >
-        {(() => {
-          const allConfirmed = room.members.filter(
-            (m) => m.status === "CONFIRMED" && m.role !== "ORGANIZER",
-          );
-          const presentes = allConfirmed.filter((m) => !absentIds.has(m.id));
-          const presentesLine = presentes.filter((m) => m.playRole === "LINE").length;
-          const presentesGoalkeeper = presentes.filter((m) => m.playRole === "GOALKEEPER").length;
-
-          const vagasLinhaLiberadas = absentIds.size > 0
-            ? [...absentIds].filter((mid) => {
-                const m = allConfirmed.find((x) => x.id === mid);
-                return m?.playRole === "LINE";
-              }).length
-            : 0;
-
-          return (
-            <>
-              <div className="flex items-center justify-between">
-                <p className="text-heading-h2 text-text-primary">Quem está no local?</p>
-                <span className="bg-accent-subtle text-accent-default text-caption-strong rounded-full px-[var(--space-md)] py-[var(--space-xs)]">
-                  {presentes.length} presentes
-                </span>
+        header={
+          <div className="flex flex-col gap-[var(--space-sm)]">
+            <p className="text-heading-h2 text-text-primary">
+              Quem está no local?
+            </p>
+            <p className="text-body-regular text-text-secondary">
+              Desmarque quem não compareceu. A vaga liberada vai para a lista de
+              espera.
+            </p>
+            <div className="mt-[var(--space-xs)] flex items-center justify-between gap-[var(--space-md)]">
+              <span className="inline-flex items-center rounded-full bg-accent-subtle px-[var(--space-md)] py-[var(--space-xs)] text-caption-strong text-accent-default">
+                {presentPlayers.length} presentes de {confirmedPlayers.length}
+              </span>
+              <button
+                type="button"
+                onClick={toggleAllAbsent}
+                className="text-caption-strong text-accent-default transition-opacity active:opacity-70"
+              >
+                {allAbsent ? "Marcar todos" : "Desmarcar todos"}
+              </button>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="-mx-[var(--space-lg)] flex flex-col gap-[var(--space-sm)] border-t border-border-default px-[var(--space-lg)] pt-[var(--space-lg)]">
+            {presentLineCount < 2 * room.teamSize && (
+              <div className="flex gap-[var(--space-sm)] items-center bg-status-warning-subtle rounded-md p-[var(--space-md)]">
+                <AlertTriangle
+                  size={16}
+                  className="text-status-warning shrink-0"
+                />
+                <p className="text-caption-regular text-status-warning">
+                  São necessários pelo menos {2 * room.teamSize} jogadores de
+                  linha presentes para iniciar.
+                </p>
               </div>
-              <p className="text-body-regular text-text-secondary">
-                Desmarque quem não compareceu. A vaga liberada vai para a lista de espera.
+            )}
+            {startError && (
+              <p className="text-caption-regular text-status-danger">
+                {startError}
               </p>
-
-              {/* Confirmados */}
-              <div className="flex flex-col gap-[var(--space-xs)]">
-                <span className="text-caption-strong text-text-muted">
-                  Confirmados · {allConfirmed.length}
-                </span>
-                {allConfirmed.map((m) => {
-                  const absent = absentIds.has(m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => toggleAbsent(m.id)}
-                      className="flex items-center gap-[var(--space-md)] py-[var(--space-sm)] text-left w-full"
+            )}
+            <Button
+              variant="Primary"
+              size="Large"
+              className="w-full"
+              onClick={handleStart}
+              disabled={isStarting || presentLineCount < 2 * room.teamSize}
+            >
+              {isStarting
+                ? "Iniciando..."
+                : `Iniciar sala · ${presentLineCount + presentGoalkeeperCount} presentes`}
+            </Button>
+            <Button
+              variant="Ghost"
+              size="Large"
+              className="w-full"
+              onClick={() => setShowStartSheet(false)}
+              disabled={isStarting}
+            >
+              Cancelar
+            </Button>
+          </div>
+        }
+      >
+        {roleGroups.map((group) => (
+          <section
+            key={group.key}
+            className="flex flex-col gap-[var(--space-sm)]"
+          >
+            <div className="flex items-baseline justify-between gap-[var(--space-md)]">
+              <span className="text-body-strong text-text-primary">
+                {group.label} · {group.members.length}
+              </span>
+              <span className="text-caption-regular text-text-muted">
+                {group.presentCount} presentes
+              </span>
+            </div>
+            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-border-default divide-y divide-border-default">
+              {group.members.map((m) => {
+                const absent = absentIds.has(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={!absent}
+                    onClick={() => toggleAbsent(m.id)}
+                    className="flex w-full items-center gap-[var(--space-md)] px-[var(--space-lg)] py-[var(--space-md)] text-left transition-colors active:bg-bg-raised"
+                  >
+                    <span
+                      className={`flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border-2 transition-colors ${
+                        absent
+                          ? "border-border-strong bg-transparent"
+                          : "border-accent-default bg-accent-default"
+                      }`}
+                      aria-hidden
                     >
-                      <div
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                          absent
-                            ? "border-border-default bg-transparent"
-                            : "border-accent-default bg-accent-default"
-                        }`}
-                        aria-hidden
-                      >
-                        {!absent && (
-                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                            <path d="M1 4L3.5 6.5L9 1" stroke="black" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                      <Avatar
-                        iniciais={memberInitials(m.user.name)}
-                        src={m.user.avatarUrl ?? undefined}
-                      />
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className={`text-body-regular truncate ${absent ? "text-text-muted" : "text-text-primary"}`}>
-                          {m.user.name}
-                        </span>
-                        {absent && (
-                          <span className="text-caption-regular text-status-warning">
-                            Ausente · libera 1 vaga de {m.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"}
-                          </span>
-                        )}
-                        {!absent && (
-                          <span className="text-caption-regular text-text-muted">
-                            {memberPosition(m)}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Em espera */}
-              {waitlist.length > 0 && (
-                <div className="flex flex-col gap-[var(--space-xs)]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-caption-strong text-text-muted">
-                      Em espera · {waitlist.length}
-                    </span>
-                    {vagasLinhaLiberadas > 0 && (
-                      <span className="text-caption-regular text-accent-default">
-                        Vaga livre: {vagasLinhaLiberadas} de Linha
-                      </span>
-                    )}
-                  </div>
-                  {waitlist.map((m) => {
-                    const vagaDisponivel =
-                      m.playRole === "LINE"
-                        ? vagasLinhaLiberadas > 0
-                        : false;
-                    return (
-                      <div
-                        key={m.id}
-                        className="flex items-center gap-[var(--space-md)] py-[var(--space-sm)]"
-                      >
-                        <Avatar
-                          iniciais={memberInitials(m.user.name)}
-                          src={m.user.avatarUrl ?? undefined}
+                      {!absent && (
+                        <Check
+                          size={16}
+                          strokeWidth={3}
+                          className="text-text-on-accent"
                         />
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-body-regular text-text-primary truncate">
-                            {m.user.name}
-                          </span>
-                          <span className="text-caption-regular text-text-muted">
-                            {m.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"} ·{" "}
-                            {vagaDisponivel ? "está no local?" : "sem vaga livre"}
-                          </span>
-                        </div>
-                        {vagaDisponivel && (
-                          <Button
-                            variant="Secondary"
-                            size="Small"
-                            onClick={() => handleAction(m.id, "promote")}
-                            disabled={loadingMemberId === m.id}
-                          >
-                            Chamar
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      )}
+                    </span>
+                    <Avatar
+                      iniciais={memberInitials(m.user.name)}
+                      src={m.user.avatarUrl ?? undefined}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span
+                        className={`truncate text-body-strong ${
+                          absent ? "text-text-muted" : "text-text-primary"
+                        }`}
+                      >
+                        {m.user.name}
+                      </span>
+                      {absent ? (
+                        <span className="text-caption-regular text-status-danger">
+                          Ausente · libera 1 vaga de{" "}
+                          {m.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"}
+                        </span>
+                      ) : (
+                        <span className="text-caption-regular text-text-muted">
+                          {memberPosition(m)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
 
-              {/* Aviso se presentes de linha insuficientes */}
-              {presentesLine < 2 * room.teamSize && (
-                <div className="flex gap-[var(--space-sm)] items-center bg-status-warning-subtle rounded-md p-[var(--space-md)]">
-                  <AlertTriangle size={16} className="text-status-warning shrink-0" />
-                  <p className="text-caption-regular text-status-warning">
-                    São necessários pelo menos {2 * room.teamSize} jogadores de linha presentes para iniciar.
-                  </p>
+        {/* Em espera */}
+        {waitlist.length > 0 && (
+          <div className="flex flex-col gap-[var(--space-xs)]">
+            <div className="flex items-center justify-between">
+              <span className="text-caption-strong text-text-muted">
+                Em espera · {waitlist.length}
+              </span>
+              {lineVacancies > 0 && (
+                <span className="text-caption-regular text-accent-default">
+                  Vaga livre: {lineVacancies} de Linha
+                </span>
+              )}
+            </div>
+            {waitlist.map((m) => {
+              const vagaDisponivel =
+                m.playRole === "LINE" ? lineVacancies > 0 : false;
+              return (
+                <div
+                  key={m.id}
+                  className="flex items-center gap-[var(--space-md)] py-[var(--space-sm)]"
+                >
+                  <Avatar
+                    iniciais={memberInitials(m.user.name)}
+                    src={m.user.avatarUrl ?? undefined}
+                  />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="text-body-regular text-text-primary truncate">
+                      {m.user.name}
+                    </span>
+                    <span className="text-caption-regular text-text-muted">
+                      {m.playRole === "GOALKEEPER" ? "Goleiro" : "Linha"} ·{" "}
+                      {vagaDisponivel ? "está no local?" : "sem vaga livre"}
+                    </span>
+                  </div>
+                  {vagaDisponivel && (
+                    <Button
+                      variant="Secondary"
+                      size="Small"
+                      onClick={() => handleAction(m.id, "promote")}
+                      disabled={loadingMemberId === m.id}
+                    >
+                      Chamar
+                    </Button>
+                  )}
                 </div>
-              )}
-
-              <Button
-                variant="Primary"
-                size="Large"
-                className="w-full"
-                onClick={handleStart}
-                disabled={isStarting || presentesLine < 2 * room.teamSize}
-              >
-                {isStarting
-                  ? "Iniciando..."
-                  : `Iniciar sala · ${presentesLine + presentesGoalkeeper} presentes`}
-              </Button>
-              <Button
-                variant="Ghost"
-                size="Large"
-                className="w-full"
-                onClick={() => setShowStartSheet(false)}
-                disabled={isStarting}
-              >
-                Cancelar
-              </Button>
-              {startError && (
-                <p className="text-caption-regular text-status-danger">{startError}</p>
-              )}
-            </>
-          );
-        })()}
+              );
+            })}
+          </div>
+        )}
       </BottomSheet>
 
       {/* BottomSheet — Menu do jogador (06h) */}

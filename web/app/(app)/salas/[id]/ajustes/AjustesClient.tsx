@@ -25,6 +25,8 @@ export function AjustesClient({ id }: AjustesClientProps) {
 
   // Seção 2 — Regras
   const [requireApproval, setRequireApproval] = useState<boolean | null>(null);
+  // Seção 3 — Promoção automática ao sair (R57)
+  const [autoPromote, setAutoPromote] = useState<boolean | null>(room?.autoPromote ?? true);
 
   // Seção 4 — Co-organizadores
   const [selectedCoOrgUserId, setSelectedCoOrgUserId] = useState<string>("");
@@ -90,7 +92,7 @@ export function AjustesClient({ id }: AjustesClientProps) {
     try {
       await apiFetch(`/rooms/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ requireApproval: currentRequireApproval }),
+        body: JSON.stringify({ requireApproval: currentRequireApproval, autoPromote }),
       });
       await mutate();
     } finally {
@@ -230,6 +232,20 @@ export function AjustesClient({ id }: AjustesClientProps) {
             onCheckedChange={setRequireApproval}
             className="relative inline-flex h-[28px] w-[48px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent bg-border-default transition-colors data-[state=checked]:bg-accent-default focus:outline-none focus:ring-2 focus:ring-accent-default focus:ring-offset-2"
             aria-label="Aprovação obrigatória"
+          >
+            <RadixSwitch.Thumb className="pointer-events-none block h-[20px] w-[20px] translate-x-[2px] rounded-full bg-white shadow-md transition-transform data-[state=checked]:translate-x-[22px]" />
+          </RadixSwitch.Root>
+          <div className="flex flex-col gap-[var(--space-xs)]">
+            <span className="text-body-strong text-text-primary">Promoção automática ao sair</span>
+            <span className="text-caption-regular text-text-secondary">
+              Ao sair voluntariamente, primeiro da waitlist da mesma função é promovido automaticamente (padrão ligado)
+            </span>
+          </div>
+          <RadixSwitch.Root
+            checked={autoPromote ?? true}
+            onCheckedChange={setAutoPromote}
+            className="relative inline-flex h-[28px] w-[48px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent bg-border-default transition-colors data-[state=checked]:bg-accent-default focus:outline-none focus:ring-2 focus:ring-accent-default focus:ring-offset-2"
+            aria-label="Promoção automática ao sair"
           >
             <RadixSwitch.Thumb className="pointer-events-none block h-[20px] w-[20px] translate-x-[2px] rounded-full bg-white shadow-md transition-transform data-[state=checked]:translate-x-[22px]" />
           </RadixSwitch.Root>

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const TOKEN = "a8eabcb783d60a78953e3b952a33a922fd4019b58853bf1ae627ad5c84a8b4bb";
+const TOKEN = "4cf37529b1848d65b5d02130c5962d5ed4a982a9d067e6243da5444781a05ebf";
 
 const NAMES = [
   "Carlos Silva", "Marcos Oliveira", "Bruno Santos", "Diego Ferreira",

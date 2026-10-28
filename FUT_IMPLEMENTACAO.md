@@ -1019,3 +1019,30 @@ Espaço no topo (regra importante):
 1. Só depois de `APROVADO FASE 11`.
 2. Confirme ao humano, em no máximo 10 linhas, que leu a seção 17 e liste as alterações em código existente (17.1).
 3. Apresente o plano da Fase 12 e espere `APROVADO PLANO FASE 12`.
+
+### 17.10 Regras R48 a R52 (v4)
+
+R48. Pesos: organizador e co-organizador definem o peso (Regular, Bom, Craque) de cada jogador em Gestão > Jogadores, com chip tocável. O peso também aparece na lista da Sala, SOMENTE para organizador/co-organizador. Jogador comum nunca recebe o peso nem na API (omitir o campo no payload, não esconder só na UI). Padrão: Bom. Antes de sortear, avisar quantos jogadores estão sem peso definido. O peso é mantido entre datas da mesma sala.
+
+R49. Encerrar sala: status ENDED mostra o resumo. Em seguida o organizador (não o co-organizador) escolhe entre "Definir nova data" e "Excluir sala". Excluir exige confirmação explícita e é irreversível.
+
+R50. Nova data (reset de ciclo): Room.cycle += 1, status volta a OPEN com a nova data/hora, apaga atribuição de times, sorteio, fila e estado ao vivo do ciclo anterior. As partidas, eventos e rodízios antigos ficam arquivados com o número do ciclo (histórico e resumo continuam acessíveis). Opção "Manter jogadores confirmados" (padrão ligada); se desligada, todos voltam para fora da lista e o convite continua válido. Pesos preservados.
+
+R51. Estado ao vivo é autoritativo do servidor. O cliente nunca exibe partida/placar vindo de cache sem revalidar: ao montar a tela, ao reconectar o socket e ao voltar o foco da aba, buscar o snapshot atual (currentMatchId, status, placar, times, fila). Eventos do socket atualizam a MESMA chave do SWR usada pela tela.
+
+R52. Telas ao vivo (partida, fim de partida, sorteio, gestão durante LIVE) usam revalidateOnMount true, sem fallbackData antigo e sem keepPreviousData que mostre outra partida.
+
+### 17.11 Presença, ausência e substituição (R53 a R58)
+
+R53. Chamada de presença: ao iniciar a sala, organizador/co-organizador marca quem está presente (padrão: todos). Ausentes viram status NO_SHOW e liberam a vaga. O sorteio considera apenas presentes.
+R54. Espera em campo: jogadores em espera podem ser "chamados para jogar" manualmente por organizador/co-organizador, ocupando vaga livre da MESMA função (Linha ou Goleiro). A fila é FIFO como sugestão, a escolha é do organizador.
+R55. Em DRAWN: organizador pode marcar ausente ou remover jogador; deve escolher entre substituir (substituto herda time e posição, sugerir peso equivalente) ou sortear de novo. Re-sorteio segue permitido só em DRAWN.
+R56. Em LIVE: apenas substituição 1 para 1, mesma função e mesmo time, com peso equivalente sugerido. Sem substituto, a vaga fica "aberta" e a organização é feita em quadra. O motor de rodízio nunca reduz o tamanho dos times por conta própria.
+R57. Saída voluntária (jogador toca em "Sair da sala"): promoção automática do primeiro da espera da mesma função, controlada por opção em Ajustes (padrão ligada). Remoção ou ausência marcada pelo organizador nunca promove automaticamente.
+R58. Permissões e registro: só organizador e co-organizadores. Toda remoção, ausência e substituição grava registro (quem, quando, motivo opcional), notifica o jogador afetado via Socket.IO e atualiza contadores de vagas e a lista de espera em tempo real. Jogador removido pode pedir para entrar de novo.
+
+Referências no Figma (página Mobile, fileira y=5400):
+06f 72:573 (Gestão > Jogadores e pesos, R48, R54) | 06g 72:722 (chamada de presença, R53)
+06h 73:594 (menu do jogador, R48, R55) | 06i 73:667 (substituição, R55, R56)
+06j 73:749 (sala encerrada, nova data ou excluir, R49, R50) | 06k 73:806 (vaga aberta em LIVE, R56)
+Remover de "fora de escopo": jogador saindo no meio da sessão (agora coberto por R56).

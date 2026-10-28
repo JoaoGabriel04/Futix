@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, Copy, Check, MapPin, Share2, Users } from "lucide-react";
+import { ArrowLeft, Calendar, Copy, Check, LogOut, MapPin, Share2, Users } from "lucide-react";
 import { Badge } from "../../../../components/ui/Badge";
 import { BottomSheet } from "../../../../components/ui/BottomSheet";
 import { Button } from "../../../../components/ui/Button";
@@ -99,6 +99,12 @@ export default function SalaPage() {
   const isConfirmed = myMember?.status === "CONFIRMED" && !isOrgOrCoOrg;
   const isVisitor = myMember === null && room.status === "OPEN";
 
+  const canLeaveRoom =
+    myMember &&
+    myMember.status !== "ORGANIZER" &&
+    myMember.status !== "LEFT" &&
+    (room.status === "OPEN" || room.status === "LOCKED");
+
   const memberBadge: BadgeStatus | null = myMember
     ? memberStatusToBadge(myMember)
     : null;
@@ -185,6 +191,16 @@ export default function SalaPage() {
           >
             <Share2 size={20} />
           </button>
+          {canLeaveRoom && (
+            <button
+              type="button"
+              aria-label="Sair da sala"
+              className="text-text-secondary hover:text-text-primary transition-colors ml-2"
+              onClick={handleLeave}
+            >
+              <LogOut size={16} className="text-red-500" />
+            </button>
+          )}
         </div>
 
         {/* Room title + member badge */}
@@ -381,20 +397,7 @@ export default function SalaPage() {
         </div>
       )}
 
-      {/* Footer — confirmed: "Sair da sala" */}
-      {isConfirmed && (
-        <div className="border-t border-border-default bg-bg-app px-[var(--space-lg)] py-[var(--space-lg)]">
-          <Button
-            variant="Danger"
-            size="Large"
-            className="w-full"
-            onClick={handleLeave}
-            disabled={loadingAction === "leave"}
-          >
-            {loadingAction === "leave" ? "Saindo..." : "Sair da sala"}
-          </Button>
-        </div>
-      )}
+      
 
       {/* Footer — org/co-org: "Gerenciar sala" + "Convidar amigo" */}
       {isOrgOrCoOrg && (

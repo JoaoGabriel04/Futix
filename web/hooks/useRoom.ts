@@ -30,12 +30,12 @@ type RoomDetail = {
   goalkeeperSlots: number;
   requireApproval: boolean;
   status: string;
-  ownerId: string;
   confirmedLine: number;
   confirmedGoalkeepers: number;
   matchMinutes: number;
   winnerRule: string;
   maxStarsPerTeam: number;
+  autoPromote: boolean;
   myMember: RoomMemberSummary | null;
   members: RoomMemberSummary[];
 };
