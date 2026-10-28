@@ -108,7 +108,6 @@ model Room {
   teamSize         Int          @default(4)
   goalkeeperSlots  Int          @default(2)
   requireApproval  Boolean      @default(true)
-  autoPromote  Boolean      @default(true)
   status           RoomStatus   @default(OPEN)
   ownerId          String
   owner            User         @relation("Owner", fields: [ownerId], references: [id])
