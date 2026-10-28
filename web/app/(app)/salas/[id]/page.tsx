@@ -66,7 +66,6 @@ export default function SalaPage() {
   const { draw } = useDraw(id);
   const { session } = useRoomSession(id);
   const [activeTab, setActiveTab] = useState("linha");
-  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -96,7 +95,6 @@ export default function SalaPage() {
   const myMember = room.myMember;
   const isOrgOrCoOrg =
     myMember?.role === "ORGANIZER" || myMember?.role === "CO_ORGANIZER";
-  const isConfirmed = myMember?.status === "CONFIRMED" && !isOrgOrCoOrg;
   const isVisitor = myMember === null && room.status === "OPEN";
 
   const canLeaveRoom =
@@ -130,15 +128,12 @@ export default function SalaPage() {
 
   async function handleLeave() {
     if (!myMember) return;
-    setLoadingAction("leave");
     try {
       await apiFetch(`/rooms/${id}/members/${myMember.id}`, { method: "DELETE" });
       await mutate();
       router.push("/inicio");
     } catch (e: unknown) {
       toast.error((e as { message?: string }).message ?? "Erro ao sair da sala.");
-    } finally {
-      setLoadingAction(null);
     }
   }
 
